@@ -136,7 +136,7 @@ $ tree /media/isme/Samsung_T5/backup
 
 Next steps:
 
-* try to restore a file locally
+* [try to restore a file locally](borg-try-to-restore-a-file-locally.md)
 * try to restore a file on a different computer (local VM? EC2 instance?)
 * try to backup full filesystem (see below)
 * try to restore full filesystem
@@ -150,3 +150,4 @@ See FAQ on
 > directories that make no sense to backup, such as /dev, /proc, /sys, /tmp and
 > /run, and to use `--one-file-system` if you only want to backup the root
 > partition (and not any mounted devices e.g.).
+
