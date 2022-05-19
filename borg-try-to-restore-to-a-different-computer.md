@@ -1,9 +1,11 @@
-# Borg: Try to restore t o a different computer
+# Borg: Try to restore to a different computer
 
 First I will try to restore to a local VM. This may help when testing the
 upgrade to Ubuntu 22.
 
 But how do I set up a local VM? It's been a while.
+
+## Setting up a local VM
 
 I use VirtualBox and Vagrant to manage my local VMs.
 
@@ -194,8 +196,125 @@ vagrant@ubuntu-focal:~$ touch /dotfiles/by_vagrant
 touch: cannot touch '/dotfiles/by_vagrant': Read-only file system
 ```
 
+## Restoring to a VM
+
 So now to test the restore I can try the following:
 
 * Mount the backup folder as read-only from the external hard drive
 * Install version 1.2.0 of borg backup in the VM
 * Use borg backup to restore a file from the Repos backup repo
+
+Reminder: The backup folder is `/media/isme/Samsung_T5/backup/`.
+
+Borg doesn't keep a registry of backup locations. That's something you need to
+keep track of yourself.
+
+Init a new VM.
+
+```bash
+cdtemp
+vagrant init ubuntu/focal64
+```
+
+Use this Vagrantfile fragment to mount the backup folder as read-only from the
+external hard drive.
+
+```ruby
+  config.vm.synced_folder(
+    "/media/isme/Samsung_T5/backup",
+    "/backup",
+    mount_options: ["ro"]
+  )
+```
+
+Launch the VM.
+
+```bash
+vagrant up
+```
+
+The output shows that the external hard drive backup repo folder was mounted.
+
+```text
+==> default: Mounting shared folders...
+    default: /backup => /media/isme/Samsung_T5/backup
+```
+
+SSH into the VM.
+
+```bash
+vagrant ssh
+```
+
+The backup folder is readable and not writable.
+
+```console
+vagrant@ubuntu-focal:~$ cat /backup/README
+This is a Borg Backup repository.
+See https://borgbackup.readthedocs.io/
+vagrant@ubuntu-focal:~$ touch /backup/write_test
+touch: cannot touch '/backup/write_test': Read-only file system
+```
+
+Use these commands, adapted from my own
+[BorgBackup installation script](https://github.com/iainelder/dotfiles/blob/master/programs/borgbackup/install.bash),
+to install the latest version of the tool.
+
+```bash
+sudo apt update
+
+sudo apt install jq
+
+browser_download_url=$(
+  curl -Ss 'https://api.github.com/repos/borgbackup/borg/releases/latest' |
+  jq -r '.assets[] | select(.name | test("borg-linux64$")) | .browser_download_url'
+)
+
+download_filename=$(
+  curl \
+  --silent \
+  --show-error \
+  --url "$browser_download_url" \
+  --location \
+  --remote-name \
+  --write-out '%{filename_effective}'
+)
+
+sudo install -T "$download_filename" /usr/local/bin/borg
+
+borg --version
+```
+
+The last command prints `borg 1.2.0` so we're ready to test a restore.
+
+Try to list the backup repos in the folder.
+
+```console
+vagrant@ubuntu-focal:~$ borg list /backup
+Failed to create/acquire the lock /backup/lock.exclusive ([Errno 30] Read-only file system: '/backup/lock.exclusive.f5p5mwal.tmp').
+Traceback (most recent call last):
+  File "borg/archiver.py", line 5089, in main
+  File "borg/archiver.py", line 5020, in run
+  File "borg/archiver.py", line 168, in wrapper
+  File "borg/repository.py", line 200, in __enter__
+  File "borg/repository.py", line 431, in open
+  File "borg/locking.py", line 387, in acquire
+  File "borg/locking.py", line 115, in __enter__
+  File "borg/locking.py", line 137, in acquire
+borg.locking.LockFailed: Failed to create/acquire the lock /backup/lock.exclusive ([Errno 30] Read-only file system: '/backup/lock.exclusive.f5p5mwal.tmp').
+
+Platform: Linux ubuntu-focal 5.4.0-109-generic #123-Ubuntu SMP Fri Apr 8 09:10:54 UTC 2022 x86_64
+Linux: Unknown Linux  
+Borg: 1.2.0  Python: CPython 3.9.10 msgpack: 1.0.3 fuse: llfuse 1.4.1 [pyfuse3,llfuse]
+PID: 3188  CWD: /home/vagrant
+sys.argv: ['borg', 'list', '/backup']
+SSH_ORIGINAL_COMMAND: None
+```
+
+It failed because it was unable to acquire a lock on the backup folder! It looks
+like borg can't use a read-only backup.
+
+There is an open issue about in Borg's GitHub:
+[Allow operations on read-only filesystems (#1035)](https://github.com/borgbackup/borg/issues/1035).
+
+Suggestions, learnings, workarounds: TODO
