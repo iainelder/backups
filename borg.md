@@ -137,7 +137,7 @@ $ tree /media/isme/Samsung_T5/backup
 Next steps:
 
 * [try to restore a file locally](borg-try-to-restore-a-file-locally.md)
-* try to restore a file on a different computer (local VM? EC2 instance?)
+* [try to restore a file on a different computer](borg-try-to-restore-to-a-different-computer.md) (local VM, mounted external drive)
 * try to backup full filesystem (see below)
 * try to restore full filesystem
 

@@ -261,9 +261,9 @@ Use these commands, adapted from my own
 to install the latest version of the tool.
 
 ```bash
-sudo apt update
+sudo apt-get -y update
 
-sudo apt install jq
+sudo apt-get -y install jq
 
 browser_download_url=$(
   curl -Ss 'https://api.github.com/repos/borgbackup/borg/releases/latest' |
@@ -317,4 +317,139 @@ like borg can't use a read-only backup.
 There is an open issue about in Borg's GitHub:
 [Allow operations on read-only filesystems (#1035)](https://github.com/borgbackup/borg/issues/1035).
 
-Suggestions, learnings, workarounds: TODO
+Users of borg use these backup services:
+
+* rsync.net
+* Backblaze
+
+zoot suggests a workaround: create a folder in a writable directory to mimic the
+backup folder and link all the backup folder's contents in the writable folder.
+
+In zoot's situation the backup is mounted over SSH. My backup is mounted locally
+and so the script to set it up can be much simpler.
+
+Assume that `/backup` is already is already mounted as a read-only filesystem.
+
+I create a folder called `./backup` in my writable working directory.
+
+To generate commands to link all the backup folder's contents to the writable
+backup folder:
+
+```bash
+find /backup  -mindepth 1 -maxdepth 1 -printf '%f\0' \
+| xargs -0 -I{} echo ln -s /backup/{} ./backup/{}
+```
+
+Output:
+
+```bash
+ln -s /backup/README ./backup/README
+ln -s /backup/data ./backup/data
+ln -s /backup/config ./backup/config
+ln -s /backup/nonce ./backup/nonce
+ln -s /backup/index.10 ./backup/index.10
+ln -s /backup/hints.10 ./backup/hints.10
+ln -s /backup/integrity.10 ./backup/integrity.10
+```
+
+I execute these commands and now I can list the backup archives from the
+read-only filesystem.
+
+```console
+vagrant@ubuntu-focal:~$ borg list ./backup
+Enter passphrase for key /home/vagrant/backup: 
+Repos                                Sun, 2022-04-24 16:07:07 [295f261e02744bfae9a149c311d288aef6313aa593c9f71acf8ef32094caf63b]
+```
+
+I will try now to extract the dotfiles README to my working directory.
+
+```bash
+borg extract \
+--list \
+./backup::Repos \
+home/isme/Repos/dotfiles/README.md
+```
+
+Output:
+
+```text
+home/isme/Repos/dotfiles/README.md
+```
+
+New files in working folder:
+
+```console
+vagrant@ubuntu-focal:~$ tree -p -u -g --du ./home
+./home
+└── [drwx------ vagrant  vagrant        21142]  isme
+    └── [drwx------ vagrant  vagrant        17046]  Repos
+        └── [drwx------ vagrant  vagrant        12950]  dotfiles
+            └── [-rw-rw-r-- vagrant  vagrant         8854]  README.md
+
+       25238 bytes used in 3 directories, 1 file
+```
+
+But a command like `borg check` still fails.
+
+```console
+vagrant@ubuntu-focal:~$ borg check ./backup
+Local Exception
+Traceback (most recent call last):
+  File "borg/archiver.py", line 5089, in main
+  File "borg/archiver.py", line 5020, in run
+  File "borg/archiver.py", line 183, in wrapper
+  File "borg/archiver.py", line 342, in do_check
+  File "borg/repository.py", line 1013, in check
+  File "borg/repository.py", line 332, in save_config
+  File "borg/helpers/fs.py", line 194, in secure_erase
+OSError: [Errno 30] Read-only file system: '/home/vagrant/backup/config.old'
+
+Platform: Linux ubuntu-focal 5.4.0-109-generic #123-Ubuntu SMP Fri Apr 8 09:10:54 UTC 2022 x86_64
+Linux: Unknown Linux  
+Borg: 1.2.0  Python: CPython 3.9.10 msgpack: 1.0.3 fuse: llfuse 1.4.1 [pyfuse3,llfuse]
+PID: 4112  CWD: /home/vagrant
+sys.argv: ['borg', 'check', './backup']
+SSH_ORIGINAL_COMMAND: None
+```
+
+The simpler solution now is to use `--bypass-lock`.
+
+```console
+vagrant@ubuntu-focal:~$ borg list --bypass-lock /backup
+Enter passphrase for key /backup: 
+Warning: The repository at location /backup was previously located at /home/vagrant/backup
+Do you want to continue? [yN] y
+Repos                                Sun, 2022-04-24 16:07:07 [295f261e02744bfae9a149c311d288aef6313aa593c9f71acf8ef32094caf63b]
+```
+
+Now try to restore everything.
+
+```bash
+time borg extract \
+--bypass-lock \
+--list \
+/backup::Repos \
+2>&1 \
+| tee borg-output.txt
+```
+
+It restored 137k files of 6.3G in 105 seconds.
+
+```
+real	1m45.934s
+user	1m9.999s
+sys	0m23.912s
+
+vagrant@ubuntu-focal:~$ wc -l borg-output.txt 
+137380 borg-output.txt
+vagrant@ubuntu-focal:~$ du -sh /home
+du: cannot read directory '/home/ubuntu/.ssh': Permission denied
+6.3G	/home
+```
+
+One thing to note is that on a different computer the user that restores the
+data might be different from the one that created the folder. In this case, the
+vagrant user can't read the .ssh folder because it was created by the isme user.
+
+A quick way to work around it is to use `sudo` for the checking operations. The
+root user can bypass file permissions.
