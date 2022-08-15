@@ -453,4 +453,147 @@ To list the archive contents for the /etc folder.
 borg list --pattern="+etc/*" --pattern="-*" ::full_system_2022-07_23_13:27
 ```
 
-TODO: to restore 
+Next day: make another backup.
+
+```
+time \
+sudo --preserve-env=BORG_REPO \
+borg create --verbose --progress --stats \
+::full_system_'{now:%Y-%m_%d_%H:%M}' \
+/ \
+--exclude /dev \
+--exclude /proc \
+--exclude /sys \
+--exclude /run \
+--exclude /lost+found \
+--exclude /mnt \
+--exclude /media \
+--exclude /tmp \
+--exclude /swapfile \
+| tee ~/tmp/borg_create_log.txt
+```
+
+It should be faster this time.
+
+```text
+Remote: Warning: Permanently added the ECDSA host key for IP address '[136.243.27.11]:23' to the list of known hosts.
+Enter passphrase for key ssh://u311503@u311503.your-storagebox.de:23/./backups/thinkpad: 
+Creating archive at "ssh://u311503@u311503.your-storagebox.de:23/./backups/thinkpad::full_system_2022-07_26_19:51"
+/root/.config/borg/security/719d8244d8c2d33f5494d5bb329c3c7b2bca0d153f493ac38d52f908215a3d1e/nonce: file changed while we backed it up
+------------------------------------------------------------------------------  
+Repository: ssh://u311503@u311503.your-storagebox.de:23/./backups/thinkpad
+Archive name: full_system_2022-07_26_19:51
+Archive fingerprint: 28dbec9e21ae7f75c4912ea43f3e3bbfb4326e663a58267d696ee947cf350200
+Time (start): Tue, 2022-07-26 19:51:53
+Time (end):   Tue, 2022-07-26 20:02:03
+Duration: 10 minutes 10.41 seconds
+Number of files: 2864820
+Utilization of max. archive size: 1%
+------------------------------------------------------------------------------
+                       Original size      Compressed size    Deduplicated size
+This archive:              132.62 GB             72.33 GB              1.40 GB
+All archives:              264.98 GB            144.68 GB             53.80 GB
+
+                       Unique chunks         Total chunks
+Chunk index:                 1319773              5661314
+------------------------------------------------------------------------------
+
+real	10m57.837s
+user	7m57.987s
+sys	1m0.524s
+```
+
+And indeed it is faster! And smaller.
+
+# Restore from backup
+
+I can't restore the backup locally on a VM because it's too big. It takes up
+more than half the total disk space.
+
+I will try to restore it to an EC2 instance with a 200GB EBS volume.
+
+All the AWS commands are going to be run in the same account and region. I have a profile set up for my sandbox account. Make it the default profile.
+
+```bash
+export AWS_PROFILE=sandbox-mgmt
+```
+
+Canonical shares the latest [Ubuntu AMI IDs](https://discourse.ubuntu.com/t/finding-ubuntu-images-with-the-aws-ssm-parameter-store/15507) via Parameter Store.
+
+```bash
+aws ssm get-parameters \
+--names /aws/service/canonical/ubuntu/server/20.04/stable/current/amd64/hvm/ebs-gp2/ami-id \
+--query 'Parameters[0].[Value]' \
+--output text
+```
+
+I wrote a CloudFormation template that launches an EC2 instance using that AMI ID in a public subnet of a new VPC.
+
+First create the stack with an EC2 instance as a restore target.
+
+```bash
+aws ec2 create-key-pair --key-name default --profile sandbox-mgmt
+
+stack_name="test-restore-$(fakeword)"
+
+sam deploy \
+--template-file test-restore.yaml \
+--stack-name $stack_name \
+--profile sandbox-mgmt \
+--capabilities CAPABILITY_IAM
+```
+
+Get the restore target's instance ID.
+
+```bash
+aws cloudformation describe-stacks \
+--profile sandbox-mgmt \
+--stack-name $stack_name \
+--query 'Stacks[0].Outputs[?OutputKey==`RestoreTargetInstanceId`]|[0].OutputValue' \
+--output text
+```
+
+In this example the output was i-01621d4a196d30c07.
+
+I start a new interactive bash session on the instance.
+
+```bash
+aws ssm start-session \
+--target i-01621d4a196d30c07 \
+--document-name AWS-StartInteractiveCommand \
+--parameters command="sudo su --login ubuntu"
+```
+
+Install borg.
+
+```
+wget -q -O - 'https://raw.githubusercontent.com/iainelder/dotfiles/master/programs/borgbackup/install.bash' | bash
+```
+
+I set the BORG_REPO environment variable again and run the info command.
+
+```bash
+export BORG_REPO="ssh://u111111@u111111.your-storagebox.de:23/./backups/thinkpad"
+borg info
+```
+
+It takes a while, but it eventually returns some stats about the the repo.
+
+```text
+u311503@u311503.your-storagebox.de's password: 
+Enter passphrase for key ssh://u311503@u311503.your-storagebox.de:23/./backups/thinkpad: 
+Enter passphrase for key ssh://u311503@u311503.your-storagebox.de:23/./backups/thinkpad: 
+Repository ID: 719d8244d8c2d33f5494d5bb329c3c7b2bca0d153f493ac38d52f908215a3d1e
+Location: ssh://u311503@u311503.your-storagebox.de:23/./backups/thinkpad
+Encrypted: Yes (repokey)
+Cache: /home/ubuntu/.cache/borg/719d8244d8c2d33f5494d5bb329c3c7b2bca0d153f493ac38d52f908215a3d1e
+Security dir: /home/ubuntu/.config/borg/security/719d8244d8c2d33f5494d5bb329c3c7b2bca0d153f493ac38d52f908215a3d1e
+------------------------------------------------------------------------------
+                       Original size      Compressed size    Deduplicated size
+All archives:              544.91 GB            297.75 GB             63.34 GB
+
+                       Unique chunks         Total chunks
+Chunk index:                 1463005             11730228
+```
+
+I have a feeling that a complete system restore on another instance isn't the right thing to do though.

@@ -1,0 +1,23 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+  SessionManagerPreferences:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: SSM-SessionManagerRunShell
+      Content:
+        schemaVersion: "1.0"
+        description: Document to hold regional settings for Session Manager
+        sessionType: Standard_Stream
+        inputs:
+          runAsEnabled: true
+          runAsDefaultUser: ubuntu
+          shellProfile:
+            linux: |-
+              cd $HOME
+              bash
+
+      DocumentFormat: YAML
+      DocumentType: Session
+      UpdateMethod: NewVersion

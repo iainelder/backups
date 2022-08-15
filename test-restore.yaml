@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: EC2 instance to perform a test restore from Hetzner BorgBackup
+
+Parameters:
+  LatestUbuntuImage:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/20.04/stable/current/amd64/hvm/ebs-gp2/ami-id
+  InstanceKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: default
+
+Resources:
+
+  # It's easier just to use "sudo su --login ubuntu"
+  # InstanceAccessRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: RestoreTargetAccess
+
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             AWS: !Ref AWS::AccountId
+  #           Action: sts:AssumeRole
+      
+  #     Policies:
+  #       - PolicyName: AccessRestoreTarget
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action: ssm:StartSession
+  #               Resource:
+  #                 - !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${RestoreTarget}"
+  #                 - !Sub "arn:${AWS::Partition}:ssm:*:*:document/AWS-StartInteractiveCommand"
+      
+  #     Tags:
+  #       - Key: SSMSessionRunAs
+  #         Value: ubuntu
+
+  RestoreTarget:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestUbuntuImage
+      InstanceType: t3.small
+      SubnetId: !Ref Subnet
+      AvailabilityZone: !GetAtt Subnet.AvailabilityZone
+      IamInstanceProfile: !Ref InstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 200
+      KeyName: !Ref InstanceKeyName
+      Not required when using SSM.
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+  
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+  
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+            Effect: Allow
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref Vpc
+      GroupDescription: Restore Target security group
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 443
+          ToPort: 443
+          IpProtocol: 6
+          Description: Session Manager (instead of VPC endpoint)
+
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+        CidrBlock: 10.0.0.0/16
+        EnableDnsHostnames: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref Vpc
+
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Sub "${AWS::Region}a"
+      CidrBlock: 10.0.0.0/16
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Vpc
+  
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+  
+  InternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  RouteTableAttachment:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref Subnet
+
+  Nacl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref Vpc
+  
+  InboundNaclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref Nacl
+      Egress: false
+      RuleNumber: 100
+      Protocol: -1
+      RuleAction: allow
+      CidrBlock: 0.0.0.0/0
+  
+  OutboundNaclEntry:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref Nacl
+      Egress: true
+      RuleNumber: 100
+      Protocol: -1
+      RuleAction: allow
+      CidrBlock: 0.0.0.0/0
+
+Outputs:
+  RestoreTargetInstanceId:
+    Value: !Ref RestoreTarget
