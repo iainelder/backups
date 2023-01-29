@@ -1,0 +1,7 @@
+project:
+  name: nice-dcv
+  regions:
+  - eu-west-1
+tests:
+  default:
+    template: ./template.yml

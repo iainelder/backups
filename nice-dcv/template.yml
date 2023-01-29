@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: NICE DCV on Ubuntu 20.04
+
+Parameters:
+  Subnet:
+    Type: AWS::EC2::Subnet::Id
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+  UbuntuImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/20.04/stable/current/amd64/hvm/ebs-gp2/ami-id
+
+Resources:
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref UbuntuImageId
+
+        # The cheapest way to get 8GB of memory on X86_64 according to
+        # instances.vantage.sh on 2023-01-29.
+        InstanceType: t3.large
+
+        # Basic monitoring is free.
+        Monitoring:
+          Enabled: false
+
+        # # Willing to pay up to the on-demand price as of 2023-01-24 as shown in
+        # # the Spot instance pricing history.
+        # SpotPrice: "0.0912"
+
+        IamInstanceProfile:
+          Name: !Ref InstanceProfile
+
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        
+        # Metadata:
+        #   AWS::CloudFormation::Init:
+
+      
+        # TODO: Install cfn-hup service properly.
+        # See https://aws.amazon.com/premiumsupport/knowledge-center/install-cloudformation-scripts/
+        # See https://github.com/awslabs/aws-cloudformation-templates/blob/master/aws/solutions/OperatingSystems/ubuntu20.04LTS_cfn-hup.cfn.yaml
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash
+
+              set -euxo pipefail
+
+              apt-get update --yes
+
+              apt-get upgrade --yes
+
+              # TODO: Split this out into a file using init metadata.
+
+              # Install_cfn_init.sh
+              mkdir -p /opt/aws/bin
+
+              wget https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
+
+              python3 -m easy_install --script-dir /opt/aws/bin aws-cfn-bootstrap-py3-latest.tar.gz
+
+              # # Install_NICE_DCV.sh
+              # # See https://docs.aws.amazon.com/dcv/latest/adminguide/setting-up-installing-linux-prereq.html
+              # # See https://docs.aws.amazon.com/dcv/latest/adminguide/setting-up-installing-linux-server.html
+
+              # apt-get install --yes ubuntu-desktop
+
+              # # TODO: Remove this because it's already part of ubuntu-desktop.
+              # apt-get install --yes gdm3
+
+              # # TODO: Why is this necessary? How do I handle it in init? Skip? Build an image?
+              # # See https://aws.amazon.com/premiumsupport/knowledge-center/execute-user-data-ec2/
+              # # See https://www.reddit.com/r/aws/comments/5jz1eg/reboot_during_userdata_execution_on_windows/
+              # reboot
+
+              # cat > /etc/gdm3/custom.conf <<"EOF"
+              # [daemon]
+              # WaylandEnable=false
+              # EOF
+
+              # apt install mesa-utils
+
+              # wget https://d1uj6qtbmh3dt5.cloudfront.net/NICE-GPG-KEY
+
+              # gpg --import NICE-GPG-KEY
+
+              # wget https://d1uj6qtbmh3dt5.cloudfront.net/2022.2/Servers/nice-dcv-2022.2-14357-ubuntu2004-x86_64.tgz
+
+              # tar -xvzf nice-dcv-2022.2-14357-ubuntu2004-x86_64.tgz && cd nice-dcv-2022.2-14357-ubuntu2004-x86_64
+
+              # sudo apt install --yes ./nice-dcv-server_2022.2.14357-1_amd64.ubuntu2004.deb
+
+              # sudo apt install --yes ./nice-dcv-web-viewer_2022.2.14357-1_amd64.ubuntu2004.deb
+
+              # sudo usermod -aG video dcv
+
+              # sudo apt install --yes ./nice-xdcv_2022.2.487-1_amd64.ubuntu2004.deb
+
+              # sudo apt install --yes dkms
+
+              # sudo dcvusbdriverinstaller --quiet
+
+              # # TODO: Maybe remove as it seems to be already installed.
+              # sudo apt install pulseaudio-utils
+
+              # Signal_Success.sh
+
+              /opt/aws/bin/cfn-signal \
+              --region ${AWS::Region} \
+              --stack ${AWS::StackName} \
+              --resource ASG
+
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: Ubuntu
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service: ec2.amazonaws.com
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+
+  ASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: "1"
+      MaxSize: "1"
+      VPCZoneIdentifier: [!Ref Subnet]
+
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: "PT15M"
+
+    # See https://aws.amazon.com/premiumsupport/knowledge-center/cloudformation-rolling-updates-launch/.
+    # See https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-attribute-updatepolicy.html
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 1
+        MinInstancesInService: 0
+        MinSuccessfulInstancesPercent: 100
+        PauseTime: "PT15M"
+        WaitOnResourceSignals: true
