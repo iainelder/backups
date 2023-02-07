@@ -76,3 +76,9 @@ From [Arara Solutions](http://arara.solutions/):
 
 * [Ubuntu Desktop 22.04 LTS - GUI Gnome with NICE DCV](https://aws.amazon.com/marketplace/pp/prodview-qqosm3zfgej3g?sr=0-3&ref_=beagle&applicationId=AWSMPContessa)
 * [Ubuntu Desktop 20.04 LTS - GUI Gnome with NICE DCV](https://aws.amazon.com/marketplace/pp/prodview-pg3jtbysn3442?sr=0-5&ref_=beagle&applicationId=AWSMPContessa)
+
+## TODO
+
+* Install dotfiles using chezmoi
+* Install private config using chezmoi
+* Install packages using EC2 Image Builder
