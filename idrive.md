@@ -44,6 +44,104 @@ An automatic email response:
 
 > Your request for support has been received and assigned ticket #ID138535391. A representative will follow-up with you as soon as possible. 
 
-### Read the Linux FAQ
+## 2023-02-09
 
-TODO: Read [Linux FAQ](https://www.idrive.com/faq_linux).
+### Response from tech support
+
+> We request you to refer to the below link to download and install the IDrive scripts for Linux operating system.
+
+> https://www.idrive.com/online-backup-linux-download
+
+This page seems to be hidden on the web site.
+
+It does at least offer a script for download.
+
+### Download IDrive script
+
+First check the [release notes](https://www.idrive.com/release-info#linux).
+
+The Linux scripts appear to be getting regular updates, once every couple of months or so.
+
+Write an installation script. See [install_idrive.sh](install_idrive.sh).
+
+There are various undocumented dependencies.
+
+It appears that the scripts are intented to be installed in a user directory, not in a system directory. When I installed the scripts in `/opt/idrive`, I got errors like this during the setup.
+
+```text
+Failed to open file /opt/idrive//.serviceLocation. Reason: Permission denied
+Failed to create service location file.
+```
+
+I gave up before I got it working. See below for my attempt.
+
+### Follow the setup instructions
+
+Read the [Linux FAQ](https://www.idrive.com/faq_linux).
+
+Read the [Linux README](https://www.idrive.com/readme).
+
+Create a "service path" for storing temporary data.
+
+```bash
+mkdir --parents "${HOME}/tmp/idrive"
+```
+
+Run the account setup script.
+
+```bash
+/opt/idrive/account_setting.pl
+```
+
+Accept the default service path.
+
+Accept migration of scripts data to newer format.
+
+Stop at error "Unable to download static Perl command line utility."
+
+Complete transcript of installation attempt:
+
+```text
+==========================================================================================
+Version: 2.36            Developed By: IDrive Inc.
+-------------            -----------------------------------------------------------------
+Status: --               IDrive Username: No logged in user
+----------               -----------------------------------------------------------------
+Storage Used: --         Linux Username: norm
+==========================================================================================
+
+
+Dear User, Please provide your details below.
+
+Enter your service path [This location will be used to maintain the temporary data used by your scripts] [Optional]: 
+Considering your default service directory...
+
+Your scripts data is in older format and must be migrated to newer format to use the latest version of scripts. 
+Do you wish to continue with the migration (y/n)? 
+Enter your choice: y
+
+Starting migration process.... 
+Failed to open file /home/norm/.local/share/idrive//.serviceLocation. No such file or directory
+Migration process completed. 
+
+Starting IDrive Cron service...
+IDrive Cron service started. 
+
+Failed to open file /home/norm/.local/share/idrive/migrateSuccess. No such file or directory
+Checking for compatible static Perl command line utility. It may take couple of minutes to complete, please wait... 
+Cannot open directory '/'. Permission denied.
+/downloads does not exists
+==========================================================================================
+Version: 2.36            Developed By: IDrive Inc.
+-------------            -----------------------------------------------------------------
+Status: --               IDrive Username: No logged in user
+----------               -----------------------------------------------------------------
+Storage Used: --         Linux Username: norm
+==========================================================================================
+
+Unable to download static Perl command line utility.
+```
+
+I give up with IDrive.
+
+There must be a better Linux backup provider than this.
