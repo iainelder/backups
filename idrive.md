@@ -145,3 +145,9 @@ Unable to download static Perl command line utility.
 I give up with IDrive.
 
 There must be a better Linux backup provider than this.
+
+### Cancel account
+
+During the cancellation process, I see that I should expect a refund.
+
+> Refunds are issued only if the account is canceled within 15 days of its creation.
