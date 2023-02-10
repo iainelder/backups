@@ -2,6 +2,8 @@
 
 Not having a backup solution is making me anxious. How do I solve this?
 
+## Jim Mendenhall
+
 Jim Mendenhall wrote an article in 2018 with some ideas.
 https://www.starryhope.com/online-backup-solutions-for-ubuntu-linux/
 
@@ -20,3 +22,15 @@ https://www.cloudwards.net/best-online-backup-for-linux/
 Find more options: Google for `ubuntu backup service`.
 
 https://www.google.com/search?channel=fs&client=ubuntu&q=ubuntu+backup+service
+
+## Ars Technica
+
+Read [Ars Archivum: Top cloud backup services worth your money](https://arstechnica.com/information-technology/2023/02/ars-archivum-top-cloud-backup-services-worth-your-money/).
+
+Jim Salter tried:
+
+* IDrive (recommended)
+* BackBlaze
+* Arq
+* Carbonite
+* Spideroak One
