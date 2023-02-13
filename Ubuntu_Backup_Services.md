@@ -34,3 +34,17 @@ Jim Salter tried:
 * Arq
 * Carbonite
 * Spideroak One
+
+## Borg revisited
+
+Users of borg use these backup services:
+
+* rsync.net
+* Backblaze
+
+It seems Backblaze doesn't really support Borg. See question [Support for Borg / Borgmatic ?](https://www.reddit.com/r/backblaze/comments/pjbkf5/support_for_borg_borgmatic/) on Backblaze Reddit.
+
+More tools to investigate:
+
+* Borgmatic (looks like a declarative configuration layer for Borg)
+* Restic (similar to Borg)
