@@ -48,3 +48,11 @@ More tools to investigate:
 
 * Borgmatic (looks like a declarative configuration layer for Borg)
 * Restic (similar to Borg)
+
+rsync.net offers a managed ZFS file system. That's great, but maybe too general for my needs.
+
+BorgBase supports Borg and Restic backup tools. It shows a graphical user interface to make the backups easier to work with.
+
+I will try BorgBase.
+
+The makers of BorgBase are the makers of Borgmatic. This is a good sign.
