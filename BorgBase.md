@@ -245,6 +245,8 @@ The size and the count roughly match! This is good enough for now, but later I'l
 
 ## TODO
 
+TODO: Improve my redaction skills, or just let everthing hang out.
+
 TODO: Check why there is a slight count difference between local and archive storage.
 
 TODO: Find a way to avoid answering the password prompt for every Borg invocation.
