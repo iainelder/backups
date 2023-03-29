@@ -621,8 +621,592 @@ summary:
 
 It looks like one of the files failed to copy because of a permissions error. I get the same error when I try to read the file as my normal user. When I use `sudo` it works. I don't need the file anyway so I just delete it locally.
 
-### Automate  
+## 2023-03-29
+
+### Automate the backups with a service
+
+Read the the Borgmatic documentation's [Autopilot](https://torsion.org/borgmatic/docs/how-to/set-up-backups/#autopilot) section.
+
+At this point I find the Borgmatic documentation easier to follow than the BorgBase documentation.
+
+It shows how to configure a systemd service to run Borgmatic. It also notes that, depending on the installation method, this part may already be done for me. (Looking forward to upgrading to Ubuntu 22 to see whether that's true!)
+
+Download the sample systemd file.
+
+```bash
+cdtemp
+wget 'https://projects.torsion.org/borgmatic-collective/borgmatic/raw/branch/master/sample/systemd/borgmatic.service'
+wget 'https://projects.torsion.org/borgmatic-collective/borgmatic/raw/branch/master/sample/systemd/borgmatic.timer'
+```
+
+Discover [Systemd Configurations Helper for Visual Studio Code](https://github.com/hangxingliu/vscode-systemd). It provides highlighting and documentation for the syntax. This is the first time I've read a systemd service file.
+
+The only part I may want to change is the `Timer` configuration from daily to hourly. For now I will leave it as it is.
+
+```systemd
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=3h
+```
+
+But wait. Can I event run this as a systemd service when it is installed as a user application?
+
+### Learn how to configure a systemd user service
+
+Google `systemd run user application as service`.
+
+Read a variety of solutions:
+
+* [How to run systemd service as specific user and group in Linux](https://www.golinuxcloud.com/run-systemd-service-specific-user-group-linux/)
+* [How do I make my systemd service run via specific user and start on boot?](https://askubuntu.com/questions/676007/how-do-i-make-my-systemd-service-run-via-specific-user-and-start-on-boot)
+* [Creating User’s Services With systemd](https://www.baeldung.com/linux/systemd-create-user-services)
+* [Using systemd to Run Your App](http://perkframework.com/v1/guides/using-systemd-to-run-your-app.html)
+* [Run any Executable as Systemd Service in Linux](https://blog.abhinandb.com/run-any-executable-as-systemd-service/)
+
+All introduce the new syntax `WantedBy` but differ on the configured value. Not all of the solutions provide explanations for the value. 
+
+* `default.target`
+* `multi-user.target`
+
+Read the [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html) documentation.
+
+> Units can be aliased (have an alternative name), by creating a symlink from the new name to the existing name in one of the unit search paths. For example, \[...\] `default.target` — the default system target started at boot — is commonly aliased to either `multi-user.target` or `graphical.target` to select what is started by default.
+
+Read [Working with systemd targets](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_basic_system_settings/working-with-systemd-targets_configuring-basic-system-settings) documentation.
+
+> Targets in `systemd` act as synchronization points during the start of your system. Target unit files, which end with the `.target` file extension, represent the `systemd` targets. The purpose of target units is to group together various `systemd` units through a chain of dependencies.
+>
+> Consider the following examples:
+>
+> * The `graphical.target` unit for starting a graphical session starts system services such as the GNOME Display Manager (`gdm.service`) or Accounts Service (`accounts-daemon.service`), and also activates the `multi-user.target` unit.
+> * Similarly, the `multi-user.target` unit starts other essential system services such as NetworkManager (`NetworkManager.service`) or D-Bus (`dbus.service`) and activates another target unit named `basic.target`.
+> While working with `systemd` targets, you can view the default target, change it or change the current target. 
+
+On my computer the default target is `graphical.target`.
+
+```console
+$ systemctl get-default
+graphical.target
+```
+
+The above is also covered in the [systemd.special](https://www.freedesktop.org/software/systemd/man/systemd.special.html) documentation, but perhaps less clearly and harder to find.
+
+Read more:
+
+* [Why do most systemd examples contain WantedBy=multi-user.target?](https://unix.stackexchange.com/questions/506347/why-do-most-systemd-examples-contain-wantedby-multi-user-target)
+* [Controlling Targets - runlevels with systemd](https://www.landoflinux.com/linux_runlevels_systemd.html)
+
+Getting historical, the SysV runlevels correspond are mapped for compatibility to some the special targets in systemd.
+
+```console
+$ ls -l /lib/systemd/system/runlevel*.target
+lrwxrwxrwx 1 root root 15 Mar  2 13:58 /lib/systemd/system/runlevel0.target -> poweroff.target
+lrwxrwxrwx 1 root root 13 Mar  2 13:58 /lib/systemd/system/runlevel1.target -> rescue.target
+lrwxrwxrwx 1 root root 17 Mar  2 13:58 /lib/systemd/system/runlevel2.target -> multi-user.target
+lrwxrwxrwx 1 root root 17 Mar  2 13:58 /lib/systemd/system/runlevel3.target -> multi-user.target
+lrwxrwxrwx 1 root root 17 Mar  2 13:58 /lib/systemd/system/runlevel4.target -> multi-user.target
+lrwxrwxrwx 1 root root 16 Mar  2 13:58 /lib/systemd/system/runlevel5.target -> graphical.target
+lrwxrwxrwx 1 root root 13 Mar  2 13:58 /lib/systemd/system/runlevel6.target -> reboot.target
+```
+
+That's enough digging into systemd.
+
+For me it looks like the `default.target` is fine.
+
+Make a copy of the original service file to make changes.
+
+```bash
+cp borgmatic.service my.borgmatic.service
+```
+
+So I add the following syntax to the `borgmatic.service` file.
+
+```diff
+--- borgmatic.service	2023-03-29 10:19:33.602654958 +0200
++++ my.borgmatic.service	2023-03-29 12:41:14.299500482 +0200
+@@ -8,2 +8,5 @@
+ 
++[Install]
++WantedBy=default.target
++
+ [Service]
+```
+There is already an "Install" section in the `.timer` file. I assume I can leave it unchanged.
+
+Many examples include `User` and `Group` keys in the `Service` section, but the Baeldung article says that these are meaningless for a user service. I suppose they are used for a system service that runs as a non-root user.
+
+Yet the Baeldung article still requires the `sudo` command to put the service file in the `/etc/system/`. I don't want to have to do this for a user service.
+
+Which paths does systemctl search? Google `systemctl search path`.
+
+Read [Where do I put my systemd unit file?](https://unix.stackexchange.com/questions/224992/where-do-i-put-my-systemd-unit-file). A lot of helpful notes from someone else in the same situation.
+
+Read `man systemd.unit` to answer the question about the search path.
+
+From the synopsis. I'm not sure what the `...` means.
+
+```text
+   System Unit Search Path
+       /etc/systemd/system.control/*
+       /run/systemd/system.control/*
+       /run/systemd/transient/*
+       /run/systemd/generator.early/*
+       /etc/systemd/system/*
+       /etc/systemd/systemd.attached/*
+       /run/systemd/system/*
+       /run/systemd/systemd.attached/*
+       /run/systemd/generator/*
+       ...
+       /lib/systemd/system/*
+       /run/systemd/generator.late/*
+
+   User Unit Search Path
+       ~/.config/systemd/user.control/*
+       $XDG_RUNTIME_DIR/systemd/user.control/*
+       $XDG_RUNTIME_DIR/systemd/transient/*
+       $XDG_RUNTIME_DIR/systemd/generator.early/*
+       ~/.config/systemd/user/*
+       /etc/systemd/user/*
+       $XDG_RUNTIME_DIR/systemd/user/*
+       /run/systemd/user/*
+       $XDG_RUNTIME_DIR/systemd/generator/*
+       ~/.local/share/systemd/user/*
+       ...
+       /usr/lib/systemd/user/*
+       $XDG_RUNTIME_DIR/systemd/generator.late/*
+```
+
+Use the `unit-paths` command to answer the question from my current configuration.
+
+System:
+
+```console
+$ systemd-analyze unit-paths
+/etc/systemd/system.control
+/run/systemd/system.control
+/run/systemd/transient
+/run/systemd/generator.early
+/etc/systemd/system
+/etc/systemd/system.attached
+/run/systemd/system
+/run/systemd/system.attached
+/run/systemd/generator
+/usr/local/lib/systemd/system
+/lib/systemd/system
+/usr/lib/systemd/system
+/run/systemd/generator.late
+```
+
+User:
+
+```console
+$ systemd-analyze --user unit-paths
+/home/isme/.config/systemd/user.control
+/run/user/1000/systemd/user.control
+/run/user/1000/systemd/transient
+/run/user/1000/systemd/generator.early
+/etc/xdg/xdg-ubuntu/systemd/user
+/etc/xdg/systemd/user
+/home/isme/.config/systemd/user
+/etc/systemd/user
+/run/user/1000/systemd/user
+/run/systemd/user
+/run/user/1000/systemd/generator
+/home/isme/.local/share/systemd/user
+/usr/share/ubuntu/systemd/user
+/usr/local/share/systemd/user
+/usr/share/systemd/user
+/var/lib/snapd/desktop/systemd/user
+/usr/local/lib/systemd/user
+/usr/lib/systemd/user
+/run/user/1000/systemd/generator.late
+```
+
+I can use the following paths without `sudo`. I've added the description from the man page.
+
+* `/home/isme/.config/systemd/user.control`: Persistent and transient configuration created using the dbus API.
+* `/home/isme/.config/systemd/user`: User configuration.
+* `/home/isme/.local/share/systemd/user`: Units of packages that have been installed in the home directory.
+
+It looks like `/home/isme/.config/systemd/user` is the most appropraite place.
+
+Use this command to find any subdirectories in the search path apart from the `*.wants` directories.
+
+```bash
+find $(systemd-analyze --user unit-paths) -mindepth 1 -type d ! -name '*.wants'
+```
+
+The only result here is `/usr/lib/systemd/user/vte-spawn-.scope.d`. I will ignore it and put both files in the `/home/isme/.config/systemd/user` directory.
+
+Before making any changes, I count the number of unit files known to systemd.
+
+```console
+$ systemd-analyze --user unit-files | grep -o '^ids: ' | wc -l
+147
+```
+
+I create the user configuration folder and put the files there.
+
+```bash
+mkdir -p /home/isme/.config/systemd/user
+cp my.borgmatic.service /home/isme/.config/systemd/user/borgmatic.service
+cp borgmatic.timer /home/isme/.config/systemd/user/borgmatic.timer
+```
+
+I reload the systemd configuration and check the number of known unit files again. There are now two more.
+
+```bash
+$ systemctl --user daemon-reload
+$ systemd-analyze --user unit-files | grep -o '^ids: ' | wc -l
+149
+```
+
+I try to start the borgmatic service. It immediately fails and tells me where to get information about that.
+
+```console
+$ systemctl --user start borgmatic
+Job for borgmatic.service failed because the control process exited with error code.
+See "systemctl --user status borgmatic.service" and "journalctl --user -xe" for details.
+```
+
+Check the service status:
+
+```text
+● borgmatic.service - borgmatic backup
+     Loaded: loaded (/home/isme/.config/systemd/user/borgmatic.service; disabled; vendor preset: enabled)
+     Active: failed (Result: exit-code) since Wed 2023-03-29 15:59:28 CEST; 54s ago
+    Process: 153827 ExecStartPre=/usr/bin/sleep 1m (code=exited, status=218/CAPABILITIES)
+
+Mar 29 15:59:28 isme-t480s systemd[1979]: Starting borgmatic backup...
+Mar 29 15:59:28 isme-t480s systemd[153827]: borgmatic.service: ProtectHostname=yes is configured, but UTS namespace setup is prohibited (container manager?), ignoring namespace setup.
+Mar 29 15:59:28 isme-t480s systemd[153827]: borgmatic.service: Failed to drop capabilities: Operation not permitted
+Mar 29 15:59:28 isme-t480s systemd[153827]: borgmatic.service: Failed at step CAPABILITIES spawning /usr/bin/sleep: Operation not permitted
+Mar 29 15:59:28 isme-t480s systemd[1979]: borgmatic.service: Control process exited, code=exited, status=218/CAPABILITIES
+Mar 29 15:59:28 isme-t480s systemd[1979]: borgmatic.service: Failed with result 'exit-code'.
+Mar 29 15:59:28 isme-t480s systemd[1979]: Failed to start borgmatic backup.
+```
+
+Check the journal for a more verbose version of the same:
+
+```text
+Mar 29 15:59:28 isme-t480s systemd[1979]: Starting borgmatic backup...
+-- Subject: A start job for unit UNIT has begun execution
+-- Defined-By: systemd
+-- Support: http://www.ubuntu.com/support
+-- 
+-- A start job for unit UNIT has begun execution.
+-- 
+-- The job identifier is 967.
+Mar 29 15:59:28 isme-t480s systemd[153827]: borgmatic.service: ProtectHostname=yes is configured, but UTS namespace setup is prohibited (container manager?), ignoring namespace setup.
+Mar 29 15:59:28 isme-t480s systemd[153827]: borgmatic.service: Failed to drop capabilities: Operation not permitted
+Mar 29 15:59:28 isme-t480s systemd[153827]: borgmatic.service: Failed at step CAPABILITIES spawning /usr/bin/sleep: Operation not permitted
+-- Subject: Process /usr/bin/sleep could not be executed
+-- Defined-By: systemd
+-- Support: http://www.ubuntu.com/support
+-- 
+-- The process /usr/bin/sleep could not be executed and failed.
+-- 
+-- The error number returned by this process is ERRNO.
+Mar 29 15:59:28 isme-t480s systemd[1979]: borgmatic.service: Control process exited, code=exited, status=218/CAPABILITIES
+-- Subject: Unit process exited
+-- Defined-By: systemd
+-- Support: http://www.ubuntu.com/support
+-- 
+-- An ExecStartPre= process belonging to unit UNIT has exited.
+-- 
+-- The process' exit code is 'exited' and its exit status is 218.
+```
+
+Search Google for `Failed to drop capabilities`.
+
+Find Borgmatic-specific help in a [generic systemd issue](https://github.com/systemd/systemd/issues/4959):
+
+@jzacsh writes:
+
+> or anyone else hitting this -- e.g. in a web search for Failed to drop capabilities: Operation not permitted -- and not finding the error message clear enough on its own, **the tl;dr is you have some overly strict options set in your systemd `.service` file** (drop capabilities in the error message is referring to a systemd option you maybe inherited from somewhere).
+
+@carmenbianca writes:
+
+> For anyone who got here via @jzacsh 's comment regarding borgmatic. Given the [current systemd sample service](https://projects.torsion.org/borgmatic-collective/borgmatic/src/commit/cd234b689d9577a20ca4eec4b2c7a391433ed448/sample/systemd/borgmatic.service), comment out:
+>
+>     * `LockPersonality`
+>     * `PrivateDevices`
+>     * `ProtectClock`
+>     * `ProtectControlGroups`
+>     * `ProtectKernelLogs`
+>     * `ProtectKernelModules`
+>     * `ProtectKernelTunables`
+>     * `CapabilityBoundingSet`
+
+Apply Carmen's changes.
+
+My systemd diff now looks like this:
+
+```diff
+--- borgmatic.service	2023-03-29 10:19:33.602654958 +0200
++++ my.borgmatic.service	2023-03-29 16:39:31.156600940 +0200
+@@ -8,2 +8,5 @@
+ 
++[Install]
++WantedBy=default.target
++
+ [Service]
+@@ -14,3 +17,3 @@
+ # the systemd manual: https://www.freedesktop.org/software/systemd/man/systemd.exec.html
+-LockPersonality=true
++# LockPersonality=true
+ # Certain borgmatic features like Healthchecks integration need MemoryDenyWriteExecute to be off.
+@@ -20,8 +23,8 @@
+ PrivateTmp=yes
+-ProtectClock=yes
+-ProtectControlGroups=yes
++# ProtectClock=yes
++# ProtectControlGroups=yes
+ ProtectHostname=yes
+-ProtectKernelLogs=yes
+-ProtectKernelModules=yes
+-ProtectKernelTunables=yes
++# ProtectKernelLogs=yes
++# ProtectKernelModules=yes
++# ProtectKernelTunables=yes
+ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+@@ -45,3 +48,3 @@
+ # May interfere with running external programs within borgmatic hooks.
+-CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_NET_RAW
++# CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_NET_RAW
+```
+
+`PrivateDevices` does not appear in my copy of sample.
+
+Copy my service into the search path again and reload.
+
+```bash
+cp my.borgmatic.service /home/isme/.config/systemd/user/borgmatic.service
+systemctl --user daemon-reload
+```
+
+Try again to start the service. This time the `start` command appears to hang for several seconds, but finally fails with the same error. (The hang is probably caused by the `ExecStartPre=sleep 1m` setting.)
+
+```console
+$ systemctl --user start borgmatic
+Job for borgmatic.service failed because the control process exited with error code.
+See "systemctl --user status borgmatic.service" and "journalctl --user -xe" for details.
+```
+
+Status output:
+
+```console
+$ systemctl --user status borgmatic
+● borgmatic.service - borgmatic backup
+     Loaded: loaded (/home/isme/.config/systemd/user/borgmatic.service; disabled; vendor preset: enabled)
+     Active: failed (Result: exit-code) since Wed 2023-03-29 16:43:02 CEST; 1min 11s ago
+    Process: 163071 ExecStartPre=/usr/bin/sleep 1m (code=exited, status=0/SUCCESS)
+    Process: 163285 ExecStart=/usr/bin/systemd-inhibit --who=borgmatic --what=sleep:shutdown --why=Prevent interrupting scheduled backup /root/.local/bin/borgmatic --verbosity -1 --syslog-verbosity 1 (code=exit>
+   Main PID: 163285 (code=exited, status=1/FAILURE)
+
+Mar 29 16:42:02 isme-t480s systemd[1979]: Starting borgmatic backup...
+Mar 29 16:42:02 isme-t480s systemd[163071]: borgmatic.service: ProtectHostname=yes is configured, but UTS namespace setup is prohibited (container manager?), ignoring namespace setup.
+Mar 29 16:43:02 isme-t480s systemd[163285]: borgmatic.service: ProtectHostname=yes is configured, but UTS namespace setup is prohibited (container manager?), ignoring namespace setup.
+Mar 29 16:43:02 isme-t480s systemd-inhibit[163286]: Failed to execute : Permission denied
+Mar 29 16:43:02 isme-t480s systemd-inhibit[163285]: /root/.local/bin/borgmatic failed with exit status 1.
+Mar 29 16:43:02 isme-t480s systemd[1979]: borgmatic.service: Main process exited, code=exited, status=1/FAILURE
+Mar 29 16:43:02 isme-t480s systemd[1979]: borgmatic.service: Failed with result 'exit-code'.
+Mar 29 16:43:02 isme-t480s systemd[1979]: Failed to start borgmatic backup.
+```
+
+It's trying to execute a file in the root user's home folder that doesn't exist.
+
+```console
+$ sudo stat /root/.local/bin/borgmatic
+stat: cannot stat '/root/.local/bin/borgmatic': No such file or directory
+```
+
+The `ExecStart` key contains the path. The idea of the whole command is to avoid interrupting a backup in progress with a sleep or a shutdown.
+
+```systemd
+ExecStart=systemd-inhibit --who="borgmatic" --what="sleep:shutdown" --why="Prevent interrupting scheduled backup" /root/.local/bin/borgmatic --verbosity -1 --syslog-verbosity 1
+```
+
+I don't need that extra robustness yet. I replace the command with the one I used earlier.
+
+```systemd
+ExecStart=borgmatic create --verbosity 1 --stats
+```
+
+Now the service diff looks like this:
+
+```diff
+--- borgmatic.service	2023-03-29 10:19:33.602654958 +0200
++++ my.borgmatic.service	2023-03-29 16:51:02.088752042 +0200
+@@ -8,2 +8,5 @@
+ 
++[Install]
++WantedBy=default.target
++
+ [Service]
+@@ -14,3 +17,3 @@
+ # the systemd manual: https://www.freedesktop.org/software/systemd/man/systemd.exec.html
+-LockPersonality=true
++# LockPersonality=true
+ # Certain borgmatic features like Healthchecks integration need MemoryDenyWriteExecute to be off.
+@@ -20,8 +23,8 @@
+ PrivateTmp=yes
+-ProtectClock=yes
+-ProtectControlGroups=yes
++# ProtectClock=yes
++# ProtectControlGroups=yes
+ ProtectHostname=yes
+-ProtectKernelLogs=yes
+-ProtectKernelModules=yes
+-ProtectKernelTunables=yes
++# ProtectKernelLogs=yes
++# ProtectKernelModules=yes
++# ProtectKernelTunables=yes
+ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+@@ -45,3 +48,3 @@
+ # May interfere with running external programs within borgmatic hooks.
+-CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_NET_RAW
++# CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_NET_RAW
+ 
+@@ -62,2 +65,2 @@
+ ExecStartPre=sleep 1m
+-ExecStart=systemd-inhibit --who="borgmatic" --what="sleep:shutdown" --why="Prevent interrupting scheduled backup" /root/.local/bin/borgmatic --verbosity -1 --syslog-verbosity 1
++ExecStart=borgmatic create --verbosity 1 --stats
+```
+
+Copy my service into the search path again and reload.
+
+```bash
+cp my.borgmatic.service /home/isme/.config/systemd/user/borgmatic.service
+systemctl --user daemon-reload
+```
+
+Try again to start the service. This time the `start` command fails with a new error.
+
+```console
+$ systemctl --user start borgmatic
+Failed to start borgmatic.service: Unit borgmatic.service has a bad unit file setting.
+See user logs and 'systemctl --user status borgmatic.service' for details.
+```
+
+After a process of trial and error using versions of `borgmatic --help`, I find that I need to specify the absolute path. The diff now looks like this.
+
+```diff
+--- borgmatic.service	2023-03-29 10:19:33.602654958 +0200
++++ my.borgmatic.service	2023-03-29 17:11:16.195078920 +0200
+@@ -8,2 +8,5 @@
+ 
++[Install]
++WantedBy=default.target
++
+ [Service]
+@@ -14,3 +17,3 @@
+ # the systemd manual: https://www.freedesktop.org/software/systemd/man/systemd.exec.html
+-LockPersonality=true
++# LockPersonality=true
+ # Certain borgmatic features like Healthchecks integration need MemoryDenyWriteExecute to be off.
+@@ -20,8 +23,3 @@
+ PrivateTmp=yes
+-ProtectClock=yes
+-ProtectControlGroups=yes
+ ProtectHostname=yes
+-ProtectKernelLogs=yes
+-ProtectKernelModules=yes
+-ProtectKernelTunables=yes
+ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+@@ -44,5 +42,2 @@
+ 
+-# May interfere with running external programs within borgmatic hooks.
+-CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_NET_RAW
+-
+ # Lower CPU and I/O priority.
+@@ -59,5 +54,2 @@
+ 
+-# Delay start to prevent backups running during boot. Note that systemd-inhibit requires dbus and
+-# dbus-user-session to be installed.
+-ExecStartPre=sleep 1m
+-ExecStart=systemd-inhibit --who="borgmatic" --what="sleep:shutdown" --why="Prevent interrupting scheduled backup" /root/.local/bin/borgmatic --verbosity -1 --syslog-verbosity 1
++ExecStart=/home/isme/.local/bin/borgmatic create --verbosity 1 --stats
+```
+
+Copy the files and restart the daemon.
+
+Try again to start the service. This time the start command hangs.
+
+```console
+$ systemctl --user start borgmatic
+```
+
+Check the status. Now it looks like the backup is running!
+
+```
+● borgmatic.service - borgmatic backup
+     Loaded: loaded (/home/isme/.config/systemd/user/borgmatic.service; disabled; vendor preset: enabled)
+     Active: activating (start) since Wed 2023-03-29 17:13:52 CEST; 35s ago
+   Main PID: 170586 (borgmatic)
+     CGroup: /user.slice/user-1000.slice/user@1000.service/borgmatic.service
+             ├─170586 /home/isme/.local/pipx/venvs/borgmatic/bin/python /home/isme/.local/bin/borgmatic create --verbosity 1 --stats
+             ├─170591 borg create ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo::{hostname}-{now:%Y-%m-%dT%H:%M:%S.%f} /home/isme --info --stats
+             ├─170592 borg create ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo::{hostname}-{now:%Y-%m-%dT%H:%M:%S.%f} /home/isme --info --stats
+             └─170594 ssh aaaaaaaa@aaaaaaaa.repo.borgbase.com borg serve --info
+
+Mar 29 17:13:52 isme-t480s systemd[1979]: Starting borgmatic backup...
+Mar 29 17:13:52 isme-t480s systemd[170586]: borgmatic.service: ProtectHostname=yes is configured, but UTS namespace setup is prohibited (container manager?), ignoring namespace setup.
+Mar 29 17:13:53 isme-t480s borgmatic[170586]: ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo: Creating archive
+Mar 29 17:13:56 isme-t480s borgmatic[170586]: Creating archive at "ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo::isme-t480s-2023-03-29T17:13:54.104058"
+Mar 29 17:13:56 isme-t480s borgmatic[170586]: ANSWER Creating archive at "ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo::isme-t480s-2023-03-29T17:13:54.104058"
+Mar 29 17:14:03 isme-t480s borgmatic[170586]: Remote: Storage quota: 21.81 GB out of 1.00 TB used.
+Mar 29 17:14:03 isme-t480s borgmatic[170586]: ANSWER Remote: Storage quota: 21.81 GB out of 1.00 TB used.
+```
+
+But it's no good if it blocks my terminal while it runs. It's supposed to run in the background.
+
+I cancel the command in my terminal and check the running process. The `borgmatic command is still running in the background.
+
+```console
+$ pgrep -f borgmatic | xargs ps -fwwp
+UID          PID    PPID  C STIME TTY          TIME CMD
+isme      170586    1979  0 17:13 ?        00:00:00 /home/isme/.local/pipx/venvs/borgmatic/bin/python /home/isme/.local/bin/borgmatic create --verbosity 1 --stats
+```
+
+After a few mintes I hear the laptop fan turn off and I check to see that it has completed a backup.
+
+Use this command to find just the output lines.
+```bash
+journalctl --user --since "2023-03-29 17:00:00" | grep ' borgmatic\[' | grep -v 'ANSWER'
+```
+
+```log
+Mar 29 17:13:53 isme-t480s borgmatic[170586]: ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo: Creating archive
+Mar 29 17:13:56 isme-t480s borgmatic[170586]: Creating archive at "ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo::isme-t480s-2023-03-29T17:13:54.104058"
+Mar 29 17:14:03 isme-t480s borgmatic[170586]: Remote: Storage quota: 21.81 GB out of 1.00 TB used.
+Mar 29 17:19:34 isme-t480s borgmatic[170586]: Remote: Storage quota: 23.59 GB out of 1.00 TB used.
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: ------------------------------------------------------------------------------
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: Repository: ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: Archive name: isme-t480s-2023-03-29T17:13:54.104058
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: Archive fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: Time (start): Wed, 2023-03-29 17:13:56
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: Time (end):   Wed, 2023-03-29 17:19:34
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: Duration: 5 minutes 38.09 seconds
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: Number of files: 844180
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: Utilization of max. archive size: 0%
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: ------------------------------------------------------------------------------
+Mar 29 17:19:42 isme-t480s borgmatic[170586]:                        Original size      Compressed size    Deduplicated size
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: This archive:               41.74 GB             23.92 GB              1.78 GB
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: All archives:               85.11 GB             49.39 GB             23.56 GB
+Mar 29 17:19:42 isme-t480s borgmatic[170586]:                        Unique chunks         Total chunks
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: Chunk index:                  667087              1708836
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: ------------------------------------------------------------------------------
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: summary:
+Mar 29 17:19:42 isme-t480s borgmatic[170586]: /home/isme/.config/borgmatic/config.yaml: Successfully ran configuration file
+```
+
 ## TODO
+
+TODO: Learn enough about systemd to write my own service files.
+
+TODO: Run the borgmatic backup every hour.
 
 TODO: Find a way to avoid answering the password prompt for every Borg invocation.
 
