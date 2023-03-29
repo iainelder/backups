@@ -586,6 +586,42 @@ Remote: Storage quota: 725.14 MB out of 1.00 TB used.
 
 This may take a while, so I leave it to run in the background.
 
+### Check backup status
+
+Complete output from Borgmatic.
+
+```text
+ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo: Creating archive
+Creating archive at "ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo::isme-t480s-2023-03-28T16:13:52.498386"
+Remote: Storage quota: 725.14 MB out of 1.00 TB used.
+Remote: Storage quota: 18.86 GB out of 1.00 TB used.
+Remote: Storage quota: 18.86 GB out of 1.00 TB used.
+/home/isme/.aws/boto/cache/e047ea363e408c5ad38c5f366b22f6cbb080361a.json: open: [Errno 13] Permission denied: 'e047ea363e408c5ad38c5f366b22f6cbb080361a.json'
+Remote: Storage quota: 21.81 GB out of 1.00 TB used.
+------------------------------------------------------------------------------
+Repository: ssh://aaaaaaaa@aaaaaaaa.repo.borgbase.com/./repo
+Archive name: isme-t480s-2023-03-28T16:13:52.498386
+Archive fingerprint: c5fa9e4e12ad701c4119cc8cb2398bf16519899195ccce449ef64cb24bc2aa0d
+Time (start): Tue, 2023-03-28 16:13:54
+Time (end):   Tue, 2023-03-28 16:52:18
+Duration: 38 minutes 23.82 seconds
+Number of files: 857154
+Utilization of max. archive size: 0%
+------------------------------------------------------------------------------
+                       Original size      Compressed size    Deduplicated size
+This archive:               41.90 GB             24.03 GB             21.06 GB
+All archives:               43.37 GB             25.48 GB             21.78 GB
+                       Unique chunks         Total chunks
+Chunk index:                  643635               861313
+------------------------------------------------------------------------------
+
+summary:
+/home/isme/.config/borgmatic/config.yaml: Successfully ran configuration file
+```
+
+It looks like one of the files failed to copy because of a permissions error. I get the same error when I try to read the file as my normal user. When I use `sudo` it works. I don't need the file anyway so I just delete it locally.
+
+### Automate  
 ## TODO
 
 TODO: Find a way to avoid answering the password prompt for every Borg invocation.
