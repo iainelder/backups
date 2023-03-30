@@ -1202,9 +1202,17 @@ Mar 29 17:19:42 isme-t480s borgmatic[170586]: summary:
 Mar 29 17:19:42 isme-t480s borgmatic[170586]: /home/isme/.config/borgmatic/config.yaml: Successfully ran configuration file
 ```
 
-## TODO
+## 2023-03-30
 
-TODO: Learn enough about systemd to write my own service files.
+### Learn about systemd service types
+
+See [Learn about systemd service types](systemd.md).
+
+### Simplify the Borgmatic service
+
+TODO
+
+## TODO
 
 TODO: Run the borgmatic backup every hour.
 
