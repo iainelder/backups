@@ -1208,9 +1208,128 @@ Mar 29 17:19:42 isme-t480s borgmatic[170586]: /home/isme/.config/borgmatic/confi
 
 See [Learn about systemd service types](systemd.md).
 
-### Simplify the Borgmatic service
+### Fix the Borgmatic user service
 
-TODO
+The most important change is to set the service type to the recommended defualt of `simple`. This should allow the `systemctl start` command to return quickly and allow the service status to be reported properly.
+
+The service file is now greatly simplified by deleting all the stuff that was only relevant for restricting what the service could do as the root user.
+
+See Appendix for the complete diff.
+
+Test the new service and time how long `systemctl start` takes to return. This time it returns quickly.
+
+```console
+$ time systemctl --user start borgmatic
+
+real	0m0.011s
+user	0m0.000s
+sys	0m0.005s
+```
+
+The execution was skipped! The journal doesn't say why, but I suspect the `ConditionACPower=true` setting because the laptop is unplugged.
+
+```console
+$ journalctl --user --unit=borgmatic | tail -1
+Mar 30 21:57:56 isme-t480s systemd[1979]: Condition check resulted in borgmatic backup being skipped.
+```
+
+I comment out `ConditionACPower=true` and try again.
+
+It starts quickly.
+
+```console
+$ time systemctl --user start borgmatic
+
+real	0m0.087s
+user	0m0.003s
+sys	0m0.001s
+```
+
+The fan starts blowing. Something is running.
+
+The status shows that the service is `active (running)`.
+
+```console
+● borgmatic.service - borgmatic backup
+     Loaded: loaded (/home/isme/.config/systemd/user/borgmatic.service; disabled; vendor preset: enabled)
+     Active: active (running) since Thu 2023-03-30 22:11:37 CEST; 53s ago
+   Main PID: 469774 (borgmatic)
+     CGroup: /user.slice/user-1000.slice/user@1000.service/borgmatic.service
+             ├─469774 /home/isme/.local/pipx/venvs/borgmatic/bin/python /home/isme/.local/bin/borgmatic create --verbosity 1 --stats
+             ├─469779 borg create ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo::{hostname}-{now:%Y-%m-%dT%H:%M:%S.%f} /home/isme --info --stats
+             ├─469780 borg create ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo::{hostname}-{now:%Y-%m-%dT%H:%M:%S.%f} /home/isme --info --stats
+             └─469782 ssh jv6dpxwh@jv6dpxwh.repo.borgbase.com borg serve --info
+
+Mar 30 22:11:37 isme-t480s systemd[1979]: Started borgmatic backup.
+Mar 30 22:11:38 isme-t480s borgmatic[469774]: ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Creating archive
+Mar 30 22:11:40 isme-t480s borgmatic[469774]: Creating archive at "ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo::isme-t480s-2023-03-30T22:11:39.025192"
+Mar 30 22:11:40 isme-t480s borgmatic[469774]: ANSWER Creating archive at "ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo::isme-t480s-2023-03-30T22:11:39.025192"
+Mar 30 22:11:48 isme-t480s borgmatic[469774]: Remote: Storage quota: 24.23 GB out of 1.00 TB used.
+Mar 30 22:11:48 isme-t480s borgmatic[469774]: ANSWER Remote: Storage quota: 24.23 GB out of 1.00 TB used.
+```
+
+Eventually the backup is created successfully.
+
+So now the service behaves properly. How do I schedule it to run hourly and automatically whenever the computer is on?
+
+### Appendix
+
+```diff
+--- /home/isme/tmp/tmp.2023-03-29.OnrXaPxE/borgmatic.service	2023-03-29 10:19:33.602654958 +0200
++++ /home/isme/.config/systemd/user/borgmatic.service	2023-03-30 21:50:07.761828069 +0200
+@@ -8,40 +8,7 @@
+ 
+-[Service]
+-Type=oneshot
+-
+-# Security settings for systemd running as root, optional but recommended to improve security. You
+-# can disable individual settings if they cause problems for your use case. For more details, see
+-# the systemd manual: https://www.freedesktop.org/software/systemd/man/systemd.exec.html
+-LockPersonality=true
+-# Certain borgmatic features like Healthchecks integration need MemoryDenyWriteExecute to be off.
+-# But you can try setting it to "yes" for improved security if you don't use those features.
+-MemoryDenyWriteExecute=no
+-NoNewPrivileges=yes
+-PrivateTmp=yes
+-ProtectClock=yes
+-ProtectControlGroups=yes
+-ProtectHostname=yes
+-ProtectKernelLogs=yes
+-ProtectKernelModules=yes
+-ProtectKernelTunables=yes
+-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+-RestrictNamespaces=yes
+-RestrictRealtime=yes
+-RestrictSUIDSGID=yes
+-SystemCallArchitectures=native
+-SystemCallFilter=@system-service
+-SystemCallErrorNumber=EPERM
+-# To restrict write access further, change "ProtectSystem" to "strict" and uncomment
+-# "ReadWritePaths", "ReadOnlyPaths", "ProtectHome", and "BindPaths". Then add any local repository
+-# paths to the list of "ReadWritePaths" and local backup source paths to "ReadOnlyPaths". This
+-# leaves most of the filesystem read-only to borgmatic.
+-ProtectSystem=full
+-# ReadWritePaths=-/mnt/my_backup_drive
+-# ReadOnlyPaths=-/var/lib/my_backup_source
+-# This will mount a tmpfs on top of /root and pass through needed paths
+-# ProtectHome=tmpfs
+-# BindPaths=-/root/.cache/borg -/root/.config/borg -/root/.borgmatic
++[Install]
++WantedBy=default.target
+ 
+-# May interfere with running external programs within borgmatic hooks.
+-CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_NET_RAW
++[Service]
++Type=simple
+ 
+@@ -59,5 +26,2 @@
+ 
+-# Delay start to prevent backups running during boot. Note that systemd-inhibit requires dbus and
+-# dbus-user-session to be installed.
+-ExecStartPre=sleep 1m
+-ExecStart=systemd-inhibit --who="borgmatic" --what="sleep:shutdown" --why="Prevent interrupting scheduled backup" /root/.local/bin/borgmatic --verbosity -1 --syslog-verbosity 1
++ExecStart=/home/isme/.local/bin/borgmatic create --verbosity 1 --stats
+```
 
 ## TODO
 
