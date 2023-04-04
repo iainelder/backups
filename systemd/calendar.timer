@@ -1,2 +1,5 @@
 [Timer]
 OnCalendar=minutely
+
+[Install]
+WantedBy=timers.target

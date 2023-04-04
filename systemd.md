@@ -567,3 +567,296 @@ Possible reasons for having this kind of units are:
 • In case of template units, the unit is meant to be enabled with some
   instance name specified.
 ```
+
+## 2023-04-04
+
+### Enable the dummy timer
+
+All the timer examples I've seen include `WantedBy=` syntax.
+
+From `man systemd.special`, which explains special units:
+
+```text
+       timers.target
+           A special target unit that sets up all timer units (see systemd.timer(5) for details) that
+           shall be active after boot.
+
+           It is recommended that timer units installed by applications get pulled in via Wants=
+           dependencies from this unit. This is best configured via WantedBy=timers.target in the
+           timer unit's "[Install]" section.
+```
+
+Add the syntax to `calendar.timer`.
+
+Copy the calendar timer to set it as the timer for the dummy service.
+
+```bash
+cp systemd/calendar.timer "$dest"/dummy.timer
+```
+
+Enable the timer. The `WantedBy=` syntax causes a `.wants` folder to be generated for `timers.target`.
+
+```console
+$ systemctl --user enable dummy.timer
+Created symlink /home/isme/.config/systemd/user/timers.target.wants/dummy.timer → /home/isme/.config/systemd/user/dummy.timer.
+```
+
+The user service folder tree looks like this. 
+
+```console
+$ tree -p "$dest"
+/home/isme/.config/systemd/user
+├── [-rw-rw-r--]  borgmatic.service
+├── [-rw-rw-r--]  borgmatic.timer
+├── [-rw-rw-r--]  dummy.service
+├── [-rw-rw-r--]  dummy.timer
+└── [drwxr-xr-x]  timers.target.wants
+    └── [lrwxrwxrwx]  dummy.timer -> /home/isme/.config/systemd/user/dummy.timer
+
+1 directory, 5 files
+```
+
+The time is loaded by not active.
+
+```console
+$ systemctl --user list-timers --all
+NEXT LEFT LAST PASSED UNIT        ACTIVATES    
+n/a  n/a  n/a  n/a    dummy.timer dummy.service
+
+1 timers listed.
+```
+
+Use the `enable --now` option to enable and start the timer.
+
+```console
+$ systemctl --user enable --now dummy.timer
+$ systemctl --user list-timers
+NEXT                         LEFT     LAST PASSED UNIT        ACTIVATES    
+Tue 2023-04-04 20:26:00 CEST 37s left n/a  n/a    dummy.timer dummy.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+```
+
+The service now runs every minute, but not on the minute. Is there a random offset being added somehow?
+
+```console
+$ journalctl --user --boot --unit dummy
+-- Logs begin at Wed 2023-03-01 05:48:03 CET, end at Tue 2023-04-04 20:27:13 CEST. --
+Apr 04 20:26:12 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:26:12 isme-t480s printf[20465]: Hello, world!
+Apr 04 20:26:12 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:27:12 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:27:12 isme-t480s printf[20782]: Hello, world!
+Apr 04 20:27:12 isme-t480s systemd[3587]: dummy.service: Succeeded.
+```
+
+After letting it run for longer, it looks more like drift.
+
+```console
+$ journalctl --user --boot --unit dummy
+-- Logs begin at Wed 2023-03-01 05:48:03 CET, end at Tue 2023-04-04 20:45:18 CEST. --
+Apr 04 20:26:12 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:26:12 isme-t480s printf[20465]: Hello, world!
+Apr 04 20:26:12 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:27:12 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:27:12 isme-t480s printf[20782]: Hello, world!
+Apr 04 20:27:12 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:28:13 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:28:13 isme-t480s printf[21045]: Hello, world!
+Apr 04 20:28:13 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:29:14 isme-t480s printf[21323]: Hello, world!
+Apr 04 20:29:14 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:29:14 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:30:14 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:30:14 isme-t480s printf[21534]: Hello, world!
+Apr 04 20:30:14 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:31:15 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:31:15 isme-t480s printf[21717]: Hello, world!
+Apr 04 20:31:15 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:32:15 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:32:15 isme-t480s printf[21910]: Hello, world!
+Apr 04 20:32:15 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:33:16 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:33:16 isme-t480s printf[22112]: Hello, world!
+Apr 04 20:33:16 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:34:17 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:34:17 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:35:17 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:35:17 isme-t480s printf[22594]: Hello, world!
+Apr 04 20:35:17 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:36:18 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:36:18 isme-t480s printf[22811]: Hello, world!
+Apr 04 20:36:18 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:37:18 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:37:18 isme-t480s printf[23001]: Hello, world!
+Apr 04 20:37:18 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:38:19 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:38:19 isme-t480s printf[23188]: Hello, world!
+Apr 04 20:38:19 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:39:19 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:39:19 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:40:20 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:40:20 isme-t480s printf[23618]: Hello, world!
+Apr 04 20:40:20 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:41:20 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:41:20 isme-t480s printf[23805]: Hello, world!
+Apr 04 20:41:20 isme-t480s systemd[3587]: dummy.service: Succeeded.
+Apr 04 20:42:21 isme-t480s systemd[3587]: Started dummy.service.
+Apr 04 20:42:21 isme-t480s printf[23999]: Hello, world!
+```
+
+Reboot and check again.
+
+It works!
+
+```console
+$ systemctl --user list-timers
+NEXT                         LEFT     LAST PASSED UNIT        ACTIVATES    
+Tue 2023-04-04 20:48:00 CEST 16s left n/a  n/a    dummy.timer dummy.service
+```
+
+Again there is variety in exactly when within the minute the service runs.
+
+```console
+$ journalctl --user --boot --unit dummy | grep printf
+Apr 04 20:48:07 isme-t480s printf[11930]: Hello, world!
+Apr 04 20:49:07 isme-t480s printf[13066]: Hello, world!
+Apr 04 20:50:15 isme-t480s printf[13677]: Hello, world!
+Apr 04 20:51:15 isme-t480s printf[14142]: Hello, world!
+Apr 04 20:52:15 isme-t480s printf[14597]: Hello, world!
+Apr 04 20:53:05 isme-t480s printf[15395]: Hello, world!
+Apr 04 20:54:15 isme-t480s printf[15851]: Hello, world!
+Apr 04 20:55:15 isme-t480s printf[16147]: Hello, world!
+Apr 04 20:56:15 isme-t480s printf[16487]: Hello, world!
+Apr 04 20:57:15 isme-t480s printf[16856]: Hello, world!
+Apr 04 20:58:15 isme-t480s printf[17139]: Hello, world!
+Apr 04 20:59:15 isme-t480s printf[17426]: Hello, world!
+Apr 04 21:00:15 isme-t480s printf[17656]: Hello, world!
+Apr 04 21:01:08 isme-t480s printf[18416]: Hello, world!
+Apr 04 21:02:15 isme-t480s printf[18822]: Hello, world!
+Apr 04 21:03:15 isme-t480s printf[19462]: Hello, world!
+Apr 04 21:04:15 isme-t480s printf[19694]: Hello, world!
+Apr 04 21:05:15 isme-t480s printf[19935]: Hello, world!
+Apr 04 21:06:15 isme-t480s printf[20264]: Hello, world!
+Apr 04 21:07:11 isme-t480s printf[20489]: Hello, world!
+Apr 04 21:08:15 isme-t480s printf[20776]: Hello, world!
+Apr 04 21:09:15 isme-t480s printf[20964]: Hello, world!
+Apr 04 21:10:15 isme-t480s printf[21219]: Hello, world!
+Apr 04 21:11:15 isme-t480s printf[21422]: Hello, world!
+Apr 04 21:12:15 isme-t480s printf[21635]: Hello, world!
+Apr 04 21:13:15 isme-t480s printf[21830]: Hello, world!
+Apr 04 21:14:15 isme-t480s printf[22023]: Hello, world!
+Apr 04 21:15:08 isme-t480s printf[22230]: Hello, world!
+Apr 04 21:16:00 isme-t480s printf[22437]: Hello, world!
+```
+
+Read [Stack Overflow question 39176514](https://stackoverflow.com/questions/39176514/is-it-correct-that-systemd-timer-accuracysec-parameter-make-the-ticks-slip): Is it correct that systemd timer AccuracySec parameter make the ticks slip? Basically, yes, the variability is intentional because of `AccuracySec`.
+
+From `man systemd.timer`:
+
+```
+       OnCalendar=
+           Defines realtime (i.e. wallclock) timers with calendar event expressions. See
+           systemd.time(7) for more information on the syntax of calendar event expressions.
+           Otherwise, the semantics are similar to OnActiveSec= and related settings.
+
+           Note that timers do not necessarily expire at the precise time configured with this
+           setting, as it is subject to the AccuracySec= setting below.
+...
+       AccuracySec=
+           Specify the accuracy the timer shall elapse with. Defaults to 1min. The timer is scheduled
+           to elapse within a time window starting with the time specified in OnCalendar=,
+           OnActiveSec=, OnBootSec=, OnStartupSec=, OnUnitActiveSec= or OnUnitInactiveSec= and ending
+           the time configured with AccuracySec= later. Within this time window, the expiry time will
+           be placed at a host-specific, randomized, but stable position that is synchronized between
+           all local timer units. This is done in order to optimize power consumption to suppress
+           unnecessary CPU wake-ups. To get best accuracy, set this option to 1us. Note that the timer
+           is still subject to the timer slack configured via systemd-system.conf(5)'s TimerSlackNSec=
+           setting. See prctl(2) for details. To optimize power consumption, make sure to set this
+           value as high as possible and as low as necessary.
+
+           Note that this setting is primarily a power saving option that allows coalescing CPU
+           wake-ups. It should not be confused with RandomizedDelaySec= (see below) which adds a
+           random value to the time the timer shall elapse next and whose purpose is the opposite: to
+           stretch elapsing of timer events over a longer period to reduce workload spikes. For
+           further details and explanations and how both settings play together, see below.
+```
+
+Now replace `calendar.timer` with `timespan.timer`.
+
+```console
+$ cp systemd/timespan.timer "$dest"/dummy.timer
+```
+
+Reactivate the timer and start it again.
+
+```console
+$ systemctl --user enable --now dummy.timer
+```
+
+Now the next time is not exactly on the minute.
+
+```console
+$ systemctl --user list-timers
+NEXT                         LEFT     LAST                         PASSED      UNIT        ACTIVATES    
+Tue 2023-04-04 21:36:37 CEST 18s left Tue 2023-04-04 21:35:10 CEST 1min 7s ago dummy.timer dummy.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+```
+
+I'm struggling to get the timer to start again using this syntax.
+
+```text
+[Timer]
+OnBootSec=1m
+OnActiveSec=1m
+OnUnitActiveSec=1m
+
+[Install]
+WantedBy=timers.target
+```
+
+Despite using `OnActiveSec=` to trigger something after the timer is activated, there is no "next" time.
+
+```console
+$ systemctl --user enable dummy.timer
+$ systemctl --user list-timers
+NEXT LEFT LAST                         PASSED    UNIT        ACTIVATES    
+n/a  n/a  Tue 2023-04-04 21:36:56 CEST 11min ago dummy.timer dummy.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+```
+
+Read [systemd Github issue 6680](https://github.com/systemd/systemd/issues/6680): .timer doesn't fire. Other people report similar behavior.
+
+Reboot and see whether it works after.
+
+Now it has a next time.
+
+```console
+$ systemctl --user list-timers
+NEXT                         LEFT     LAST                         PASSED UNIT        ACTIVATES    
+Tue 2023-04-04 21:52:21 CEST 17s left Tue 2023-04-04 21:52:00 CEST 2s ago dummy.timer dummy.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+```
+
+But it doesn't last.
+
+```console
+$ journalctl --user --boot --since "21:36:00" --unit dummy | grep printf
+Apr 04 21:52:00 isme-t480s printf[12175]: Hello, world!
+Apr 04 21:52:23 isme-t480s printf[12381]: Hello, world!
+$ systemctl --user list-timers
+NEXT LEFT LAST                         PASSED  UNIT        ACTIVATES    
+n/a  n/a  Tue 2023-04-04 21:52:23 CEST 53s ago dummy.timer dummy.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+```
+
+TODO: Make the monotonic timer repeat reliably.
