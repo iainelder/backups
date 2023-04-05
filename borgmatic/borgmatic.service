@@ -1,0 +1,9 @@
+[Unit]
+Description=Borgmatic backup
+
+[Install]
+WantedBy=default.target
+
+[Service]
+Type=simple
+ExecStart=/home/isme/.local/bin/borgmatic create --verbosity 1 --stats

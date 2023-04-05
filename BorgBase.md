@@ -1331,6 +1331,143 @@ So now the service behaves properly. How do I schedule it to run hourly and auto
 +ExecStart=/home/isme/.local/bin/borgmatic create --verbosity 1 --stats
 ```
 
+## 2023-04-05
+
+### Run the Borgmatic backup every hour
+
+I set up a [systemd workshop](systemd.md) to learn how to configure a service that runs every so often, either on a calendar-based schedule or relative to boot time.
+
+Now I add simple service and timer files to this repo and copy them to the user service folder.
+
+Reloading the daemon makes the unit files visible but doesn't start the timer.
+
+```console
+$ cp --verbose borgmatic/* ~/.config/systemd/user/
+'borgmatic/borgmatic.service' -> '/home/isme/.config/systemd/user/borgmatic.service'
+'borgmatic/borgmatic.timer' -> '/home/isme/.config/systemd/user/borgmatic.timer'
+$ systemctl --user daemon-reload 
+$ systemctl --user list-timers --all
+NEXT                         LEFT     LAST                         PASSED  UNIT        ACTIVATES    
+Wed 2023-04-05 21:24:51 CEST 42s left Wed 2023-04-05 21:23:51 CEST 17s ago dummy.timer dummy.service
+
+1 timers listed.
+$ systemctl --user list-timers 
+NEXT                         LEFT     LAST                         PASSED  UNIT        ACTIVATES    
+Wed 2023-04-05 21:24:51 CEST 31s left Wed 2023-04-05 21:23:51 CEST 28s ago dummy.timer dummy.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+$ systemctl --user list-units-files 'borgmatic.*'
+Unknown operation list-units-files.
+$ systemctl --user list-unit-files 'borgmatic.*'
+UNIT FILE         STATE    VENDOR PRESET
+borgmatic.service disabled enabled      
+borgmatic.timer   disabled enabled      
+
+2 unit files listed.
+```
+
+To start the timer, use the `start` command on the timer. (In the workshop with the dummy service, I had to start the unit itself without `.timer`. I don't understand the difference.)
+
+```console
+$ systemctl --user start borgmatic.timer
+$ systemctl --user list-timers 'borgmatic'
+NEXT LEFT LAST                         PASSED       UNIT            ACTIVATES        
+n/a  n/a  Wed 2023-04-05 21:28:58 CEST 2min 55s ago borgmatic.timer borgmatic.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+```
+
+The backup completes. For some reason all of the output lines are duplicated with an "ANSWER" prefix. Omit these.
+
+```consoel
+$ journalctl --user --boot --output=cat --unit borgmatic | grep -v ANSWER
+/home/isme/.config/systemd/user/borgmatic.service:9: Executable "borgmatic" not found in path "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+borgmatic.service: Unit configuration has fatal error, unit will not be started.
+Started Borgmatic backup.
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Creating archive
+Creating archive at "ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo::isme-t480s-2023-04-05T21:28:59.943241"
+Remote: Storage quota: 25.82 GB out of 1.00 TB used.
+Remote: Storage quota: 26.75 GB out of 1.00 TB used.
+------------------------------------------------------------------------------
+Repository: ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo
+Archive name: isme-t480s-2023-04-05T21:28:59.943241
+Archive fingerprint: 36b2d17297f3a5a3204be064046537f90b8afd39dab22c73f7150c4dc147dc51
+Time (start): Wed, 2023-04-05 21:29:02
+Time (end):   Wed, 2023-04-05 21:33:08
+Duration: 4 minutes 6.51 seconds
+Number of files: 860687
+Utilization of max. archive size: 0%
+------------------------------------------------------------------------------
+                       Original size      Compressed size    Deduplicated size
+This archive:               42.24 GB             24.09 GB            928.74 MB
+All archives:              253.22 GB            145.56 GB             26.72 GB
+                       Unique chunks         Total chunks
+Chunk index:                  727552              5141489
+------------------------------------------------------------------------------
+summary:
+/home/isme/.config/borgmatic/config.yaml: Successfully ran configuration file
+borgmatic.service: Succeeded.
+```
+
+The service is schedule to run again 1 hour after it started.
+
+```console
+$ systemctl --user list-timers 'borgmatic'
+NEXT                         LEFT       LAST                         PASSED   UNIT            ACTIVATES        
+Wed 2023-04-05 22:28:58 CEST 51min left Wed 2023-04-05 21:28:58 CEST 8min ago borgmatic.timer borgmatic.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+```
+
+Wait an hour to see whether it really does run again.
+
+### Find folders to exclude from the backup
+
+There are a lot of cache folders in the home folder that can be excluded from the backup without losing anything very important.
+
+Use the visual Disk Usage Analyzer to find them easily.
+
+Incomplete list of paths in my home folder to exclude:
+
+* `.cache`
+* `.config/google-chrome/Default/Service Worker/CacheStorage`
+* `.config/Slack/Service Worker/CacheStorage`
+* `.config/Cache`
+* `.config/Code/Cache`
+
+There are over 7000 folders with "cache" in the name. It could be a long list!
+
+```console
+$ find ~ -type d -ipath '*cache*' -prune -printf '.' | wc -c
+7090
+```
+
+Almost all of the folders are `__pycache__` folders that can be matched with a single pattern.
+
+```console
+$ find ~ -type d -name '__pycache__' -prune -printf '.' | wc -c
+6818
+```
+
+The top 10 biggest cache folders.
+
+```console
+$ find ~ -type d -ipath '*cache*' ! -name '__pycache__' -prune -print0 | du -s --files0-from - | sort -g -r | head -n 10
+8651212	/home/isme/.cache
+1639180	/home/isme/.config/google-chrome/Default/Service Worker/CacheStorage
+1063456	/home/isme/.config/Slack/Service Worker/CacheStorage
+701612	/home/isme/.npm/_cacache
+431852	/home/isme/.mozilla/firefox/0314ys9a.default-release/storage/default/https+++app.slack.com/cache
+365736	/home/isme/.terraform.d/plugin-cache
+279484	/home/isme/.config/Microsoft/Microsoft Teams/Code Cache
+270628	/home/isme/.config/Slack/Cache
+252832	/home/isme/.config/Code/Cache
+210048	/home/isme/Repos/.../node_modules/.cache
+```
+
 ## TODO
 
 TODO: Run the borgmatic backup every hour.

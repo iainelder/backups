@@ -1,0 +1,9 @@
+[Unit]
+Description=Run borgmatic backup after boot and then every hour
+
+[Timer]
+OnBootSec=1m
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target
