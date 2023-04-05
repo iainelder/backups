@@ -1424,6 +1424,15 @@ Pass --all to see loaded but inactive timers, too.
 
 Wait an hour to see whether it really does run again.
 
+It works!
+
+```console
+$ journalctl --boot --user --unit borgmatic --grep 'Started Borgmatic backup'
+-- Logs begin at Wed 2023-03-01 09:26:33 CET, end at Wed 2023-04-05 23:28:47 CEST. --
+Apr 05 21:28:58 isme-t480s systemd[1923]: Started Borgmatic backup.
+Apr 05 22:29:26 isme-t480s systemd[1923]: Started Borgmatic backup.
+```
+
 ### Find folders to exclude from the backup
 
 There are a lot of cache folders in the home folder that can be excluded from the backup without losing anything very important.
