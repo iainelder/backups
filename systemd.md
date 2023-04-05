@@ -859,4 +859,51 @@ n/a  n/a  Tue 2023-04-04 21:52:23 CEST 53s ago dummy.timer dummy.service
 Pass --all to see loaded but inactive timers, too.
 ```
 
-TODO: Make the monotonic timer repeat reliably.
+## 2023-04-05
+
+### Fix the monotonic (timespan) timer
+
+Yesterday I hadn't copied the version of `timespan.timer` that includes the `OnUnitActiveSec=` syntax. That's the part that makes the timer repeat!
+
+The timer activates 1 minute after the unit activates. So start the unit once to start the timer. (Calling `systemctl --user start dummy.timer` did nothing for me.)
+
+```console
+$ dest="$HOME/.config/systemd/user"
+$ cp systemd/timespan.timer "$dest"/dummy.timer
+$ systemctl --user start dummy
+$ systemctl --user list-timers
+NEXT                         LEFT     LAST                         PASSED    UNIT        ACTIVATES    
+Wed 2023-04-05 20:56:09 CEST 57s left Wed 2023-04-05 19:58:13 CEST 56min ago dummy.timer dummy.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+$ journalctl --user --boot --unit dummy | grep printf
+Apr 05 19:58:01 isme-t480s printf[11958]: Hello, world!
+Apr 05 19:58:13 isme-t480s printf[12229]: Hello, world!
+Apr 05 20:55:09 isme-t480s printf[24586]: Hello, world!
+Apr 05 20:56:31 isme-t480s printf[24791]: Hello, world!
+```
+
+Reboot to see whether it works automatically.
+
+It works!
+
+```console
+$ systemctl --user list-timers
+NEXT                         LEFT     LAST PASSED UNIT        ACTIVATES    
+Wed 2023-04-05 21:00:34 CEST 24s left n/a  n/a    dummy.timer dummy.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+$ systemctl --user list-timers
+NEXT                         LEFT     LAST                         PASSED  UNIT        ACTIVATES    
+Wed 2023-04-05 21:01:36 CEST 15s left Wed 2023-04-05 21:00:36 CEST 44s ago dummy.timer dummy.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+$ journalctl --user --boot --unit dummy | grep printf
+Apr 05 21:00:36 isme-t480s printf[11218]: Hello, world!
+Apr 05 21:01:38 isme-t480s printf[11566]: Hello, world!
+```
+
+Now I think I know enough about systemd to set up an hourly backup service for Borgmatic.
