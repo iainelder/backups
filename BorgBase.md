@@ -1463,18 +1463,25 @@ $ find ~ -type d -name '__pycache__' -prune -printf '.' | wc -c
 
 The top 10 biggest cache folders.
 
+```bash
+find ~ -type d -ipath '*cache*' ! -name '__pycache__' -prune -print0 \
+| du --summarize --bytes --files0-from=- \
+| sort --general-numeric-sort --reverse \
+| head --lines=10 \
+| numfmt --field=1 --to=iec
+```
+
 ```console
-$ find ~ -type d -ipath '*cache*' ! -name '__pycache__' -prune -print0 | du -s --files0-from - | sort -g -r | head -n 10
-8651212	/home/isme/.cache
-1639180	/home/isme/.config/google-chrome/Default/Service Worker/CacheStorage
-1063456	/home/isme/.config/Slack/Service Worker/CacheStorage
-701612	/home/isme/.npm/_cacache
-431852	/home/isme/.mozilla/firefox/0314ys9a.default-release/storage/default/https+++app.slack.com/cache
-365736	/home/isme/.terraform.d/plugin-cache
-279484	/home/isme/.config/Microsoft/Microsoft Teams/Code Cache
-270628	/home/isme/.config/Slack/Cache
-252832	/home/isme/.config/Code/Cache
-210048	/home/isme/Repos/.../node_modules/.cache
+8.1G /home/isme/.cache
+1.6G /home/isme/.config/google-chrome/Default/Service Worker/CacheStorage
+1.1G /home/isme/.config/Slack/Service Worker/CacheStorage
+654M /home/isme/.npm/_cacache
+415M /home/isme/.mozilla/firefox/0314ys9a.default-release/storage/default/https+++app.slack.com/cache
+358M /home/isme/.terraform.d/plugin-cache
+270M /home/isme/.config/Microsoft/Microsoft Teams/Code Cache
+252M /home/isme/.config/Slack/Cache
+245M /home/isme/.config/Code/Cache
+203M /home/isme/Repos/.../node_modules/.cache
 ```
 
 ## TODO
