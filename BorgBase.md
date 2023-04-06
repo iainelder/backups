@@ -1381,7 +1381,7 @@ Pass --all to see loaded but inactive timers, too.
 
 The backup completes. For some reason all of the output lines are duplicated with an "ANSWER" prefix. Omit these.
 
-```consoel
+```console
 $ journalctl --user --boot --output=cat --unit borgmatic | grep -v ANSWER
 /home/isme/.config/systemd/user/borgmatic.service:9: Executable "borgmatic" not found in path "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 borgmatic.service: Unit configuration has fatal error, unit will not be started.
@@ -1484,9 +1484,147 @@ find ~ -type d -ipath '*cache*' ! -name '__pycache__' -prune -print0 \
 203M /home/isme/Repos/.../node_modules/.cache
 ```
 
+## 2023-04-06
+
+### Schedule backup on startup
+
+Both the timer nor the service unit files are disabled when I reboot my computer.
+
+```console
+$ systemctl --user list-unit-files 'borgmatic.*'
+UNIT FILE         STATE    VENDOR PRESET
+borgmatic.service disabled enabled      
+borgmatic.timer   disabled enabled      
+
+2 unit files listed.
+```
+
+Yesterday I started the timer but did not enable it. Enablement is necessary to set up the link between the timers.target and my service timer.
+
+Enable the timer now.
+
+```console
+$ systemctl --user enable borgmatic.timer
+Created symlink /home/isme/.config/systemd/user/timers.target.wants/borgmatic.timer → /home/isme/.config/systemd/user/borgmatic.timer.
+```
+
+And start the timer to trigger it now.
+
+```console
+$ systemctl --user list-timers --all
+NEXT                         LEFT     LAST                         PASSED  UNIT            ACTIVATES    >
+Thu 2023-04-06 10:30:20 CEST 19s left Thu 2023-04-06 10:29:20 CEST 40s ago dummy.timer     dummy.service>
+n/a                          n/a      Thu 2023-04-06 10:29:59 CEST 1s ago  borgmatic.timer borgmatic.ser>
+
+2 timers listed.
+```
+
+I reboot and confirm that the backups start automatically.
+
+### Test exclude rules
+
+As stated before, I want to exclude the big chache folders and other things I don't need to keep in the backup.
+
+```bash
+borg create --list --dry-run \
+--pattern='+home/isme/Descargas/Perros' \
+--pattern='-home/isme/Descargas' \
+-- repo1::arch1 /home/isme/Descargas
+```
+
+The output lists all the file names prefixed with `x ` for excluded and `- ` for included.
+
+```text
+x /home/isme/Descargas
+x /home/isme/Descargas/IMG-20210610-WA0002.jpg
+x /home/isme/Descargas/WFaCrTWWQWg0XC5b68NK_MonoLisa-plus.zip
+...
+- /home/isme/Descargas/Perros/Maya.pdf
+- /home/isme/Descargas/Perros/Crumpet.pdf
+...
+```
+
+This format breaks for file names that contain a newline.
+
+```text
+x /home/isme/Descargas/folder1/folder2/FILENAME WITH SPACES
+AND A NEWLINE.pdf
+```
+
+Add the `--log-json` parameter for machine-readable JSONL output.
+
+```bash
+borg create --list --log-json --dry-run \
+--pattern='+home/isme/Descargas/Perros' \
+--pattern='-home/isme/Descargas' \
+-- repo1::arch1 /home/isme/Descargas
+```
+
+```json
+{"type": "file_status", "status": "x", "path": "/home/isme/Descargas"}
+{"type": "file_status", "status": "x", "path": "/home/isme/Descargas/IMG-20210610-WA0002.jpg"}
+...
+{"type": "file_status", "status": "x", "path": "/home/isme/Descargas/folder1/folder2/FILE NAME WITH SPACES\nAND A NEWLINE.pdf"}
+...
+{"type": "file_status", "status": "-", "path": "/home/isme/Descargas/Perros/Maya.pdf"}
+{"type": "file_status", "status": "-", "path": "/home/isme/Descargas/Perros/Crumpet.pdf"}
+```
+
+This allows me to count the inclusions and exclusions.
+
+```bash
+borg create --list --log-json --dry-run \
+--pattern='+home/isme/Descargas/Perros' \
+--pattern='-home/isme/Descargas' \
+-- repo1::arch1 /home/isme/Descargas \
+2>/tmp/list.jsonl
+```
+
+I can use DuckDB:
+
+```bash
+cat /tmp/list.jsonl \
+| \
+duckdb \
+-json \
+-c "
+SELECT
+  type,
+  status,
+  COUNT(*) AS file_count
+FROM read_json_auto('/dev/stdin')
+GROUP BY type, status;
+"
+```
+
+```json
+[{"type":"file_status","status":"x","file_count":155},
+{"type":"file_status","status":"-","file_count":8}]
+```
+
+Or jq:
+
+```bash
+cat /tmp/list.jsonl \
+| \
+jq \
+--slurp \
+--compact-output \
+'
+group_by(.type, .status)
+| map({type: .[0].type, status: .[0].status, file_count: length})
+| .[]
+'
+```
+
+```json
+{"type":"file_status","status":"-","file_count":8}
+{"type":"file_status","status":"x","file_count":155}
+```
+
 ## TODO
 
-TODO: Run the borgmatic backup every hour.
+TODO: Find a way to test exclusions in Borgmatic.
 
 TODO: Find a way to avoid answering the password prompt for every Borg invocation.
 
