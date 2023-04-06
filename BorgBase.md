@@ -1622,6 +1622,24 @@ group_by(.type, .status)
 {"type":"file_status","status":"x","file_count":155}
 ```
 
+### Checking the list-timers behavior
+
+I can hear from the computer fan that the backup has started.
+
+When I check the timers status immediately after, I see no "next" activation for the backup.
+
+```
+$ systemctl --user list-timers
+NEXT                         LEFT    LAST                         PASSED       UNIT            ACTIVATES        
+Thu 2023-04-06 13:04:59 CEST 6s left Thu 2023-04-06 13:03:59 CEST 53s ago      dummy.timer     dummy.service    
+n/a                          n/a     Thu 2023-04-06 13:03:35 CEST 1min 17s ago borgmatic.timer borgmatic.service
+
+2 timers listed.
+Pass --all to see loaded but inactive timers, too.
+```
+
+Check again later after the backup is complete.
+
 ## TODO
 
 TODO: Find a way to test exclusions in Borgmatic.
