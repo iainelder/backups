@@ -6,4 +6,4 @@ WantedBy=default.target
 
 [Service]
 Type=simple
-ExecStart=/home/isme/.local/bin/borgmatic create --verbosity 1 --stats
+ExecStart=/home/isme/.local/bin/borgmatic --verbosity=1 --stats

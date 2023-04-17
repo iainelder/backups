@@ -1640,9 +1640,223 @@ Pass --all to see loaded but inactive timers, too.
 
 Check again later after the backup is complete.
 
-## TODO
+## 2023-04-17
+
+### Prune backups to control space
+
+I've been using BorgBase for a while now and I've been racking up the gigabytes.
+
+![](borgbase_usage_on_2023-04-17.png)
+
+I learn about [pruning the backups](https://borgbackup.readthedocs.io/en/stable/usage/prune.html) with Borg to save space.
+
+Borgmatic controls the prune settings in the config file. I set it to keep all backups in the past 24H, daily backups for 7 days, monthly backups for 6 months, and 1 yearly backup.
+
+```yaml
+retention:
+    keep_within: 24H
+    keep_daily: 7
+    keep_monthly: 6
+    keep_yearly: 1
+```
+
+Borgmatic shows what it would do with the following command line.
+
+```bash
+borgmatic prune --list --verbosity=1 --dry-run
+```
+
+```text
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Pruning archives (dry run; not making any changes)
+Keeping archive (rule: within #1):       isme-t480s-2023-04-17T17:40:21.519107 Mon, 2023-04-17 17:40:23 [fa37a9d84ea8aa1c5e88f538fd42b6b451fd0f39b4512ee724b5bf13c3d1acf9]
+Keeping archive (rule: within #2):       isme-t480s-2023-04-17T16:39:34.821039 Mon, 2023-04-17 16:39:36 [b97726a930a38354dd75b8efbb13c1f6bcf35d332fd0e75d098ebfaa7c8bcbed]
+Keeping archive (rule: within #3):       isme-t480s-2023-04-17T14:38:35.094775 Mon, 2023-04-17 14:38:36 [6b0cf277433b2547fec50b169afebbddd6bc4106404c31c0a0d4e51ab32025fd]
+Keeping archive (rule: within #4):       isme-t480s-2023-04-17T13:38:20.567390 Mon, 2023-04-17 13:38:22 [9859526ad49caa99985df9f34c02ba90cb1d27300b0ef0250141b8bc3dc6520e]
+Keeping archive (rule: within #5):       isme-t480s-2023-04-17T12:37:34.832445 Mon, 2023-04-17 12:37:36 [e4ade45042884d1e56778ec42892d3f1e30470d173b8caab1bc54d32d0a3ae36]
+Keeping archive (rule: within #6):       isme-t480s-2023-04-17T11:36:35.121988 Mon, 2023-04-17 11:36:37 [36be63a8392db8ba6abfb66a382959aaa8d340bf60b886570a69a71d673d571f]
+Keeping archive (rule: within #7):       isme-t480s-2023-04-17T10:35:38.359014 Mon, 2023-04-17 10:35:40 [22c278dddc61ccb14f25a3b0d803d5c26b927c36b123724e1ab61548a88f0db7]
+Keeping archive (rule: within #8):       isme-t480s-2023-04-17T09:35:35.686366 Mon, 2023-04-17 09:35:37 [61fcd6cd7d1228eb5de3812ae4a3be25ac4b118a10c5b50477bf02bf759ac462]
+Keeping archive (rule: within #9):       isme-t480s-2023-04-16T19:04:32.951289 Sun, 2023-04-16 19:04:34 [26380b08d91d90c367be2a8501e20ec869e9b51bc95d31f4a23b8150fb6ed4f7]
+Keeping archive (rule: within #10):      isme-t480s-2023-04-16T18:03:33.222620 Sun, 2023-04-16 18:03:34 [1256fa518fb8f06b3736ec5e68a96568d34b9a9a4710167af4f933ddbf74f5b3]
+Would prune:                             isme-t480s-2023-04-16T17:03:06.020412 Sun, 2023-04-16 17:03:07 [64ee845991300e66183f00d0915df93b5bbca78df3cc1feda213d47d7338a462]
+Would prune:                             isme-t480s-2023-04-16T10:38:51.855836 Sun, 2023-04-16 10:38:53 [e201b68002bd6d98daf2a6e51c78134f8719291f0c5abfd7ddc92ddd3903418a]
+Keeping archive (rule: daily #1):        isme-t480s-2023-04-14T19:40:17.120825 Fri, 2023-04-14 19:40:18 [fa0a3e7c21f8245266a274d5a973a4ba83cabf4193dbe6c6eb7355eeb35eb83c]
+Would prune:                             isme-t480s-2023-04-14T18:32:08.296678 Fri, 2023-04-14 18:32:10 [42bc274aee5c25289e6f65e555774e5d0fd52e365f389f21b304776dc783c534]
+Would prune:                             isme-t480s-2023-04-14T17:32:06.467734 Fri, 2023-04-14 17:32:08 [7f2ea06f51dd8a66b21b5f5368c3984b4ef861ecc82586313812042004462516]
+Would prune:                             isme-t480s-2023-04-14T16:32:07.234816 Fri, 2023-04-14 16:32:09 [e2d70e7eb233182eb348620f7004876af4a3b4786189accce0170313ebdc799d]
+Would prune:                             isme-t480s-2023-04-14T15:32:06.454601 Fri, 2023-04-14 15:32:08 [f61b3ef9ac9752c461ccda418ffa2ee9229123a9cdf10484d95497671f97c8a1]
+Would prune:                             isme-t480s-2023-04-14T14:31:06.258644 Fri, 2023-04-14 14:31:08 [0108bffed9671250984e582437a6816a720838e2099c7ee4ac87f92b3a7c234e]
+Would prune:                             isme-t480s-2023-04-14T13:31:06.653388 Fri, 2023-04-14 13:31:08 [742bf590569f4ec4f216d60a8089aaeb122940b7a252cf44d27ab0b3e1b31bae]
+Would prune:                             isme-t480s-2023-04-14T12:31:06.820000 Fri, 2023-04-14 12:31:08 [04f42f7854cce42ae817716a5e0e61838ad72944d062149164eb459c42347b70]
+Would prune:                             isme-t480s-2023-04-14T11:30:51.737001 Fri, 2023-04-14 11:30:53 [6ebf0c687158defea326bf2e87f22f6b14de50243f4bd5296a445c4afed309f5]
+Would prune:                             isme-t480s-2023-04-14T10:30:06.379503 Fri, 2023-04-14 10:30:08 [d33345979948165ba6cbfa7d6db3836cba8f658f5ce3482fd94de7bdca26213b]
+Keeping archive (rule: daily #2):        isme-t480s-2023-04-13T19:18:57.906349 Thu, 2023-04-13 19:19:00 [ab3625bf2fbf9d11f89d2c2776f8fd0cf66c0ddb201c592c995d50d075170454]
+Would prune:                             isme-t480s-2023-04-13T18:18:18.965173 Thu, 2023-04-13 18:18:21 [ffa71b02fba921f5355541589570fcc143867e0bebb287c25d91bf7b87ef6a6b]
+Would prune:                             isme-t480s-2023-04-13T17:17:55.339967 Thu, 2023-04-13 17:17:57 [afd1646adc71b04e2c203e30b9d3f3ae38ccff69969855ac5d3dcdfc4ef8af7a]
+Would prune:                             isme-t480s-2023-04-13T16:17:23.001136 Thu, 2023-04-13 16:17:24 [f291fd10c27b076a3ccbaab2a12338c14e79f9ce1ddff9848858a5f9ac47b45e]
+Would prune:                             isme-t480s-2023-04-13T15:17:18.495404 Thu, 2023-04-13 15:17:20 [da9ac9326460e629a149bb82198f939621702fec2f12d59614547d156cb3744d]
+Would prune:                             isme-t480s-2023-04-13T14:17:17.319067 Thu, 2023-04-13 14:17:19 [e63bdfd5abac2bc231e17946460af39b105accfe1e31e428689e4537dafaf2cf]
+Would prune:                             isme-t480s-2023-04-13T13:16:44.372724 Thu, 2023-04-13 13:16:46 [a59ca7fea3387c56a9a3ee1773529110011d4120afa6c15cf704f5bfe96ff493]
+Would prune:                             isme-t480s-2023-04-13T12:16:18.834175 Thu, 2023-04-13 12:16:20 [4afcec67e9f930d95c994e5acdb9427ef80480c001a9110834d565302c4588c1]
+Would prune:                             isme-t480s-2023-04-13T11:16:14.023437 Thu, 2023-04-13 11:16:15 [b0df1b3812261fee04953a7ff0e42faf1fcf81532ab4a94a70400cdfedc6ac27]
+Would prune:                             isme-t480s-2023-04-13T10:15:18.508869 Thu, 2023-04-13 10:15:20 [b4ee2f4843a6f358f322fe1c1e7d4d374e672c5e58f4f621b632fb0ebf3c1588]
+Would prune:                             isme-t480s-2023-04-13T09:15:12.158402 Thu, 2023-04-13 09:15:14 [55caad1b58a90cc234729ef14842666cc79b0ba1497b5bbd6685fbbb7ec998ac]
+Keeping archive (rule: daily #3):        isme-t480s-2023-04-12T18:41:08.903761 Wed, 2023-04-12 18:41:10 [0b47191ef17e6325949d1fbcda433f0b7d39007a2c9825e2f8fddb246dfa461c]
+Would prune:                             isme-t480s-2023-04-12T17:41:08.430868 Wed, 2023-04-12 17:41:10 [d5632e6a351a45bd198b516c5d537ec3a2029e66bfcc76e0111e1bfa7d9d3847]
+Would prune:                             isme-t480s-2023-04-12T16:40:56.628047 Wed, 2023-04-12 16:40:58 [0ec600c164d8215e3bc428a3976e8ba0b180fba52420cf0e7cc9dcd497575338]
+Would prune:                             isme-t480s-2023-04-12T15:40:16.414425 Wed, 2023-04-12 15:40:18 [fa181a5b767e16993744ea616c34b9cf6d0271e1bb1747e92d69a1356891adbb]
+Would prune:                             isme-t480s-2023-04-12T14:40:06.946173 Wed, 2023-04-12 14:40:08 [68c74dd4e1411f060ac9c045fa834d97ca1d064eb4a22dbb489478e88810ed0a]
+Would prune:                             isme-t480s-2023-04-12T13:39:56.168923 Wed, 2023-04-12 13:39:58 [20026e629fd79bb2e3a58d1e2c025e4e43cc734ecee5129cae8429ea201b7acb]
+Would prune:                             isme-t480s-2023-04-12T12:39:11.248562 Wed, 2023-04-12 12:39:13 [190459cfe10fe63f3fa85a6cca7c04fa86f2b148ea52758a703b7659acb927e6]
+Would prune:                             isme-t480s-2023-04-12T11:39:06.777301 Wed, 2023-04-12 11:39:08 [a140da1e8c0b23db7ebca4c553acda0307dda2dc3bd5d11083e6c66ccb330f83]
+Would prune:                             isme-t480s-2023-04-12T10:39:06.845654 Wed, 2023-04-12 10:39:08 [3cc954de3943fb06af5598f38d3fd823ebc62dc21028f0b9a65234bf1585c013]
+Would prune:                             isme-t480s-2023-04-12T09:17:48.284872 Wed, 2023-04-12 09:17:50 [4bb1b31a651a5415f9dbc1ba01af405980482dea78b1d4626e6b19e46448aab8]
+Would prune:                             isme-t480s-2023-04-12T08:17:34.028879 Wed, 2023-04-12 08:17:36 [40c4ffa231cd020060e00d4e28009981e3d8d7ce3a9e774090551409db922e74]
+Would prune:                             isme-t480s-2023-04-12T07:16:48.403405 Wed, 2023-04-12 07:16:50 [9d7329f7900eba450207623c6535f2cfe1459d5db0046c8a958783bfddc98eed]
+Would prune:                             isme-t480s-2023-04-12T06:16:22.265158 Wed, 2023-04-12 06:16:24 [20d91548de2d11dad5e9987a22e260fee7dd2f6822d251ca353351ec1b4d8735]
+Would prune:                             isme-t480s-2023-04-12T05:15:48.598135 Wed, 2023-04-12 05:15:50 [f3ac8080ed47a2da913e3f8f0773d8f9f935820b1f654264db6be0f171ff53f3]
+Would prune:                             isme-t480s-2023-04-12T04:15:48.484027 Wed, 2023-04-12 04:15:50 [600ed8e624ad0d2b3af8df19a0a59ea9ee1f9b39462952d66429510512cf7e02]
+Would prune:                             isme-t480s-2023-04-12T03:15:40.977740 Wed, 2023-04-12 03:15:42 [3394165968d8ce0f635f57071ca12355ae222325be8751ef4edfb2f8eb310f40]
+Would prune:                             isme-t480s-2023-04-12T02:14:48.478919 Wed, 2023-04-12 02:14:50 [2abb6ebe0f0260ff47928556d61dc086733815ea476f9620dea16cca389c5dcb]
+Would prune:                             isme-t480s-2023-04-12T01:14:32.874293 Wed, 2023-04-12 01:14:34 [d8785cb1cb43cabaf58d31ea3927507af81d611281024fb4877809ee45849824]
+Would prune:                             isme-t480s-2023-04-12T00:13:48.422956 Wed, 2023-04-12 00:13:50 [0422f2551e6e1c256121878e45cb6361c209f83d59cea5f0e1ead657eb0ae57b]
+Keeping archive (rule: daily #4):        isme-t480s-2023-04-11T23:13:24.350811 Tue, 2023-04-11 23:13:26 [748134a36374eb8c0f45722eff74c955f97b93370da34d387a531e34118b2c5c]
+Would prune:                             isme-t480s-2023-04-11T22:12:49.952508 Tue, 2023-04-11 22:12:51 [7d5047ebc2786635401627ee8802722423f7a5cd8506e28ead3c6dad02cbf21b]
+Would prune:                             isme-t480s-2023-04-11T21:12:48.342407 Tue, 2023-04-11 21:12:50 [aa462adde36cf3fb5cbfe00a04c76aa3f697252a00ce29f8624b54e877285ba9]
+Would prune:                             isme-t480s-2023-04-11T20:12:23.202399 Tue, 2023-04-11 20:12:25 [2fe5ce9e0dd8dd76948176e070bf55474d12e39f2b10d428cdd869d917f1ba78]
+Would prune:                             isme-t480s-2023-04-11T19:01:49.175307.checkpoint Tue, 2023-04-11 19:01:54 [fc5cca0dada23d21cbdccd2d02a2a97435318d4b08823d8c1fe326a8e199feb9]
+Would prune:                             isme-t480s-2023-04-11T18:01:26.165275 Tue, 2023-04-11 18:01:28 [016eff5f9b7e43466013bae3ca17f87df07b82007b583f5b756d6a535aaff6b6]
+Would prune:                             isme-t480s-2023-04-11T17:00:49.543512 Tue, 2023-04-11 17:00:51 [97906dac2c71451f4f89a605e5254299297275b9523908153733d9d7bba6501e]
+Would prune:                             isme-t480s-2023-04-11T16:00:49.370725 Tue, 2023-04-11 16:00:51 [a0539ccdd0b63cf44774753d2411ec630c9188fdfbf94d487976004ba11fb29c]
+Would prune:                             isme-t480s-2023-04-11T15:00:34.042020 Tue, 2023-04-11 15:00:35 [1286a2faa8ea654a5225310211ffcb3e69055ff22878bfb1c99b2ea141b74c0b]
+Would prune:                             isme-t480s-2023-04-11T13:59:49.150913 Tue, 2023-04-11 13:59:51 [bfd80c4fcf58b7f81620ec05eacba827d454bde8b7d13b67bed63999ae835d7a]
+Would prune:                             isme-t480s-2023-04-11T12:59:18.799794 Tue, 2023-04-11 12:59:20 [7eb86b379c174149dce3cc12a3af80437ee47523a9beb02411d0a4cabeb006c4]
+Would prune:                             isme-t480s-2023-04-11T11:59:04.589783 Tue, 2023-04-11 11:59:06 [08b8b62f3d4843ee9105f3e6ac4cb682234f3e087585114a4dfcbf22a3d2b229]
+Would prune:                             isme-t480s-2023-04-11T10:58:49.476508 Tue, 2023-04-11 10:58:51 [5d651a63d16a69569a70ad87cf7923365ea82fb4abdb7e87588d38c092baae05]
+Would prune:                             isme-t480s-2023-04-11T09:58:26.639435 Tue, 2023-04-11 09:58:28 [ffef5d9e9b199863485e564a0490b80dc0f0e2119661869d52b11268c0da869f]
+Keeping archive (rule: daily #5):        isme-t480s-2023-04-07T10:19:29.871710 Fri, 2023-04-07 10:19:31 [d2f759aced16dfc8e2786ecde3035914187387c713e570a967d1deb511ebce8d]
+Keeping archive (rule: daily #6):        isme-t480s-2023-04-06T21:52:10.743625 Thu, 2023-04-06 21:52:12 [e9bb8abc69ca8b4694f3929287702221d557bcec173f8044a28cceaa439c8c66]
+Would prune:                             isme-t480s-2023-04-06T20:51:54.513749 Thu, 2023-04-06 20:51:56 [2cc89425e31a0927de3bcd47fd1f7e6973638c422b90b94996a1f7158bdc3187]
+Would prune:                             isme-t480s-2023-04-06T19:06:26.063723 Thu, 2023-04-06 19:06:27 [8c8ee6e50f6b4f1b7e442bd2dcdc604e7d8c0a37e2c2dab92238e84a43cb217c]
+Would prune:                             isme-t480s-2023-04-06T18:05:36.992732 Thu, 2023-04-06 18:05:38 [590ddf408b3d211a636cc03401fcf953661c241ce8d7130ed58b9f60fa8de74f]
+Would prune:                             isme-t480s-2023-04-06T17:05:19.188837 Thu, 2023-04-06 17:05:20 [422b9fe56d3044b2cfad3ba10ed5199bc40ffb58390eccd46e1164eaf69ad916]
+Would prune:                             isme-t480s-2023-04-06T16:04:44.561197 Thu, 2023-04-06 16:04:46 [6fb33ec9b2445c851e222c59e7520c2c15b1643bebfa0507ba325251448c99b4]
+Would prune:                             isme-t480s-2023-04-06T15:04:38.033488 Thu, 2023-04-06 15:04:39 [34c7f417e63e8ee7d64bb5dddba3bd7ea030cb691485bec4cb296b081f246c15]
+Would prune:                             isme-t480s-2023-04-06T14:04:36.246067 Thu, 2023-04-06 14:04:38 [8f0d11fad25d07d197e3f517527a7a881fb4bffd17ddb4729424adce24fd14cf]
+Would prune:                             isme-t480s-2023-04-06T13:03:37.108734 Thu, 2023-04-06 13:03:38 [0bb57bb0309681ac4c20cfb209a41b4524cc665eb81e7c1a499596b24f3fb039]
+Would prune:                             isme-t480s-2023-04-06T12:03:26.111785 Thu, 2023-04-06 12:03:27 [10fb98defae78ee07df60a582b622770d4378ed057328f6dc48212ab0d14b620]
+Would prune:                             isme-t480s-2023-04-06T10:30:00.522601 Thu, 2023-04-06 10:30:02 [42bdad9bb549582916e75b945d0d7b2c317af7aa0b3e9607aee0af582db0884f]
+Keeping archive (rule: daily #7):        isme-t480s-2023-04-05T22:29:27.992011 Wed, 2023-04-05 22:29:31 [e3763d21d100f0c200f11453e83755edb078d3a16375be2ee4f984f8873f268d]
+Would prune:                             isme-t480s-2023-04-05T21:28:59.943241 Wed, 2023-04-05 21:29:02 [36b2d17297f3a5a3204be064046537f90b8afd39dab22c73f7150c4dc147dc51]
+Would prune:                             isme-t480s-2023-04-03T10:32:40.248730 Mon, 2023-04-03 10:32:42 [8e26856f50b9c1748258c95da6cf54c43cb50990c365e47f3aa327c1f064a858]
+Keeping archive (rule: monthly #1):      isme-t480s-2023-03-30T22:11:39.025192 Thu, 2023-03-30 22:11:40 [be36374b3b3d3791f163581590920e1c95519387dfc0bdea52520f9fc1a85997]
+Would prune:                             isme-t480s-2023-03-30T11:58:14.244283 Thu, 2023-03-30 11:58:16 [73954a31092813afdcaa4e56c9aaca1a05278bccd0ae52db2527a570c552bc12]
+Would prune:                             isme-t480s-2023-03-29T17:13:54.104058 Wed, 2023-03-29 17:13:56 [3f2af451198b67b5ad8cece2d92bb5142bb9a4af2b90e730c8fe7f1a4accf406]
+Would prune:                             isme-t480s-2023-03-28T16:13:52.498386 Tue, 2023-03-28 16:13:54 [c5fa9e4e12ad701c4119cc8cb2398bf16519899195ccce449ef64cb24bc2aa0d]
+Keeping archive (rule: monthly[oldest] #2): isme-t480s-2023-03-28T13:27:42.529490 Tue, 2023-03-28 13:27:44 [379cf1418eead25b74a78c1af4e3ac41ab1e119d402091f5623f5d325427f6eb]
+
+summary:
+/home/isme/.config/borgmatic/config.yaml: Successfully ran configuration file
+```
+
+I update the systemd user service ExecStart property to remove the `create` word.
+
+```cfg
+[Service]
+Type=simple
+ExecStart=/home/isme/.local/bin/borgmatic --verbosity=1 --stats
+```
+
+The `create` word would make borgmatic create a new repo only. Without create, it supposedly performs the following actions:
+
+* create
+* prune
+* compact (saves space after pruning)
+* check (verifies the consistency)
+
+At this point I think I will ignore the consistency check because I'm unsure about how to be notified if there is ever an inconsistency.
+
+Copy the new service file.
+
+```bash
+cp borgmatic/borgmatic.service ~/.config/systemd/user/borgmatic.service
+```
+
+Start the service.
+
+```bash
+systemctl --user start borgmatic.service
+```
+
+Follow the journal to see what is logged this time.
+
+```bash
+journalctl --user --since 18:00 --unit borgmatic.service --follow
+```
+
+It logs the usual output of the `create` part. Then it shows a message about pruning. I've removed the ANSWER lines by hand to make it more readable.
+
+```text
+Apr 17 18:28:48 isme-t480s borgmatic[71313]: ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Pruning archives
+Apr 17 18:28:52 isme-t480s borgmatic[71313]: Remote: Storage quota: 43.15 GB out of 1.00 TB used.
+Apr 17 18:45:36 isme-t480s borgmatic[71313]: Remote: Storage quota: 43.15 GB out of 1.00 TB used.
+Apr 17 18:45:39 isme-t480s borgmatic[71313]: ------------------------------------------------------------------------------
+Apr 17 18:45:39 isme-t480s borgmatic[71313]:                        Original size      Compressed size    Deduplicated size
+Apr 17 18:45:39 isme-t480s borgmatic[71313]: Deleted data:               -2.83 TB             -1.62 TB            -13.25 GB
+Apr 17 18:45:39 isme-t480s borgmatic[71313]: All archives:              808.92 GB            463.52 GB             29.86 GB
+Apr 17 18:45:39 isme-t480s borgmatic[71313]:                        Unique chunks         Total chunks
+Apr 17 18:45:39 isme-t480s borgmatic[71313]: Chunk index:                  799562             16905419
+Apr 17 18:45:39 isme-t480s borgmatic[71313]: ------------------------------------------------------------------------------
+Apr 17 18:45:39 isme-t480s borgmatic[71313]: ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Compacting segments
+Apr 17 18:45:42 isme-t480s borgmatic[71313]: Remote: Storage quota: 43.15 GB out of 1.00 TB used.
+Apr 17 18:45:42 isme-t480s borgmatic[71313]: Remote: Storage quota: 43.15 GB out of 1.00 TB used.
+Apr 17 18:47:09 isme-t480s borgmatic[71313]: Remote: compaction freed about 12.97 GB repository space.
+Apr 17 18:47:09 isme-t480s borgmatic[71313]: ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Running consistency checks
+Apr 17 18:47:15 isme-t480s borgmatic[71313]: Skipping repository check due to configured frequency; 18 days, 16:28:59.325466 until next check
+Apr 17 18:47:15 isme-t480s borgmatic[71313]: Skipping archives check due to configured frequency; 18 days, 16:28:59.329050 until next check
+Apr 17 18:47:15 isme-t480s borgmatic[71313]: summary:
+Apr 17 18:47:15 isme-t480s borgmatic[71313]: /home/isme/.config/borgmatic/config.yaml: Successfully ran configuration file
+Apr 17 18:47:15 isme-t480s systemd[2227]: borgmatic.service: Succeeded.
+```
+
+The pruning takes 17 minutes. Is that only because it's the first time pruning?
+
+Compaction after pruning freed about 13 GB or space.
+
+In the BorgBase interface the current usage now shows 30.22 GB.
+
+### Exclude caches to reduce backup size
+
+Check the size of the last archive.
+
+```console
+$ borgmatic info --archive latest
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Displaying archive summary information
+Archive name: isme-t480s-2023-04-17T18:25:52.387255
+Archive fingerprint: 5c381312fc9e9512af832db840f58e36f2fd5b0d09d05316b96745e7a1cdd5a1
+Comment:
+Hostname: isme-t480s
+Username: isme
+Time (start): Mon, 2023-04-17 18:25:54
+Time (end): Mon, 2023-04-17 18:28:32
+Duration: 2 minutes 38.77 seconds
+Number of files: 922651
+Command line: borg create 'ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo::{hostname}-{now:%Y-%m-%dT%H:%M:%S.%f}' /home/isme --info --stats
+Utilization of maximum supported archive size: 0%
+------------------------------------------------------------------------------
+                       Original size      Compressed size    Deduplicated size
+This archive:               42.90 GB             24.59 GB             46.58 MB
+All archives:              808.92 GB            463.52 GB             29.86 GB
+                       Unique chunks         Total chunks
+Chunk index:                  799562             16905419
+```
+
+The size of the latest archive is 42.90 GB.
 
 TODO: Find a way to test exclusions in Borgmatic.
+
+## TODO
+
 
 TODO: Find a way to avoid answering the password prompt for every Borg invocation.
 
