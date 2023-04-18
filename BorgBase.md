@@ -1853,10 +1853,146 @@ Chunk index:                  799562             16905419
 
 The size of the latest archive is 42.90 GB.
 
-TODO: Find a way to test exclusions in Borgmatic.
+## 2023-04-18
+
+### Revisit exclusions
+
+Find a way to test exclusions in borgmatic.
+
+Here is how I test a single exclusion using plain Borg.
+
+```bash
+borg create --list --log-json --dry-run \
+--pattern='-home/isme/.cache' \
+-- repo1::arch1 ~ \
+2>/tmp/list.jsonl
+```
+
+The command writes output like this. Value `"-"` for `status` includes the file and `"x"` excludes it.
+
+```json
+{"type": "file_status", "status": "-", "path": "/home/isme/.parallel/runs-without-willing-to-cite"}
+{"type": "file_status", "status": "-", "path": "/home/isme/.parallel/will-cite"}
+...
+{"type": "file_status", "status": "x", "path": "/home/isme/.cache"}
+{"type": "file_status", "status": "x", "path": "/home/isme/.cache/opera"}
+...
+{"type": "file_status", "status": "-", "path": "/home/isme/.gnupg/private-keys-v1.d"}
+{"type": "file_status", "status": "-", "path": "/home/isme/.gnupg/trustdb.gpg"}
+...
+```
+
+At this point I haven't added any exclusions to Borgmatic's config.
+
+This is as close as I can get from reading Borgmatic's command help.
+
+```bash
+borgmatic create --dry-run --list --json --verbosity 2
+```
+
+The output is completely different. No list of files. The only maybe useful thing I see is an invocation of borg.
+
+```text
+Ensuring legacy configuration is upgraded
+/home/isme/.config/borgmatic/config.yaml: No commands to run for pre-everything hook
+borg --version --debug --show-rc
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Running actions for repository
+/home/isme/.config/borgmatic/config.yaml: No commands to run for pre-actions hook
+/home/isme/.config/borgmatic/config.yaml: No commands to run for pre-backup hook
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Creating archive (dry run; not making any changes)
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Calling postgresql_databases hook function remove_database_dumps
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Removing PostgreSQL database dumps (dry run; not actually removing anything)
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Calling mysql_databases hook function remove_database_dumps
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Removing MySQL database dumps (dry run; not actually removing anything)
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Calling mongodb_databases hook function remove_database_dumps
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Removing MongoDB database dumps (dry run; not actually removing anything)
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Calling sqlite_databases hook function remove_database_dumps
+ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo: Removing SQLite database dumps (dry run; not actually removing anything)
+borg create --dry-run ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo::{hostname}-{now:%Y-%m-%dT%H:%M:%S.%f} /home/isme --json
+/home/isme/.config/borgmatic/config.yaml: Calling postgresql_databases hook function remove_database_dumps
+/home/isme/.config/borgmatic/config.yaml: Removing PostgreSQL database dumps (dry run; not actually removing anything)
+/home/isme/.config/borgmatic/config.yaml: Calling mysql_databases hook function remove_database_dumps
+/home/isme/.config/borgmatic/config.yaml: Removing MySQL database dumps (dry run; not actually removing anything)
+/home/isme/.config/borgmatic/config.yaml: Calling mongodb_databases hook function remove_database_dumps
+/home/isme/.config/borgmatic/config.yaml: Removing MongoDB database dumps (dry run; not actually removing anything)
+/home/isme/.config/borgmatic/config.yaml: Calling sqlite_databases hook function remove_database_dumps
+/home/isme/.config/borgmatic/config.yaml: Removing SQLite database dumps (dry run; not actually removing anything)
+/home/isme/.config/borgmatic/config.yaml: No commands to run for post-backup hook
+/home/isme/.config/borgmatic/config.yaml: No commands to run for post-actions hook
+/home/isme/.config/borgmatic/config.yaml: No commands to run for post-everything hook
+
+summary:
+/home/isme/.config/borgmatic/config.yaml: Successfully ran configuration file
+```
+
+Set the same exclusion in Borgmatic's config.
+
+```yaml
+    patterns:
+      - '- /home/isme/.cache'
+```
+
+Execute the Borgmatic command again.
+
+This time the Borg invocation in the output looks like this:
+
+```text
+borg create --patterns-from /tmp/tmps7nvq0x3 --dry-run ssh://jv6dpxwh@jv6dpxwh.repo.borgbase.com/./repo::{hostname}-{now:%Y-%m-%dT%H:%M:%S.%f} --json
+```
+
+Cat the patterns file while the dry run is still executing.
+
+```console
+$ cat /tmp/tmps7nvq0x3
+- /home/isme/.cache
+R /home/isme
+```
+
+So that's how the pattern read from the config and passed to Borg. But I still don't see any include/exclude output.
+
+It beats me, so I create [issue 680](https://projects.torsion.org/borgmatic-collective/borgmatic/issues/680) in the Borgmatic issue tracker.
+
+For now I'll test it by just creating a backup a checking the result.
+
+```
+systemctl --user start borgmatic.service
+```
+
+When the backup completes, I'll list the files it contains.
+
+The latest backup contains almost 810,000 files weighing just over 34 GB.
+
+```console
+$ borgmatic info --archive latest
+...
+Number of files: 809733
+...
+                       Original size      Compressed size    Deduplicated size
+This archive:               34.23 GB             17.53 GB            109.61 MB
+All archives:              741.86 GB            408.95 GB             29.83 GB
+                       Unique chunks         Total chunks
+Chunk index:                  796126             16266009
+```
+
+Yesterday's backup contains 920,000 files weighing almost 43 GB.
+
+```
+$ borgmatic info --archive isme-t480s-2023-04-17T18:25:52.387255
+...
+Number of files: 922651
+...
+                       Original size      Compressed size    Deduplicated size
+This archive:               42.90 GB             24.59 GB            201.54 MB
+All archives:              741.86 GB            408.95 GB             29.83 GB
+                       Unique chunks         Total chunks
+Chunk index:                  796126             16266009
+```
+
+That's a decent space saving with just one exclusion rule.
 
 ## TODO
 
+TODO: Add more exclusion rules.
 
 TODO: Find a way to avoid answering the password prompt for every Borg invocation.
 
