@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -euo pipefail
+
+function stream-images() {
+  next_token_args=
+  while : ; do
+    aws imagebuilder list-images --owner Amazon $next_token_args > images.json
+
+    cat images.json | jq -j '.nextToken|select(.)' > next_token
+
+    if ! [ -s next_token ]; then
+      break
+    fi
+
+    next_token_args="--next-token $(< next_token)"
+
+    cat images.json | jq -c '.imageVersionList[]'
+  done
+}
+
+stream-images
