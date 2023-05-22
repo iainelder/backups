@@ -171,3 +171,9 @@ The stack creates the following Image Builder resources:
 * InfrastructureConfiguration
 
 What it lacks is an ImagePipeline, which would allow repeated builds.
+
+2023-05-22: Copy the original template and adapt it for my needs.
+
+```bash
+wget "https://raw.githubusercontent.com/aws-samples/amazon-ec2-image-builder-samples/master/CloudFormation/Linux/ubuntu-2004-with-latest-ssm-agent/ubuntu-2004-with-latest-ssm-agent.yml"
+```
