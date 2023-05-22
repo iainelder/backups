@@ -153,3 +153,10 @@ Resources:
       Type: String
       Value:
         Fn::GetAtt: [Ubuntu2004WithLatestSSMAgent, ImageId]
+
+  Pipeline:
+    Type: AWS::ImageBuilder::ImagePipeline
+    Properties:
+      Name:  Ubuntu-2004-with-latest-SSM-Agent-Pipeline
+      ImageRecipeArn: !Ref Ubuntu2004ImageRecipe
+      InfrastructureConfigurationArn: !Ref Ubuntu2004ImageInfrastructureConfiguration
