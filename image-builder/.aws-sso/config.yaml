@@ -1,0 +1,19 @@
+SSOConfig:
+    image-builder:
+        SSORegion: eu-west-1
+        StartUrl: https://d-936707a5b2.awsapps.com/start
+        Accounts:
+            726356392388:
+              Roles:
+                  AdministratorAccess:
+                      Profile: builder
+ConsoleDuration: 480
+CacheRefresh: 168
+UrlAction: granted-containers
+ConfigProfilesUrlAction: granted-containers
+UrlExecCommand:
+    - /usr/bin/firefox
+    - "%s"
+LogLevel: error
+HistoryLimit: 10
+HistoryMinutes: 1440

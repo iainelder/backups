@@ -1,0 +1,5 @@
+#!/bin/bash
+
+rm ~/.aws-sso/cache.json
+
+aws-sso-cli config-profiles --force --level=info
